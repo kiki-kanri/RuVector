@@ -92,7 +92,7 @@ impl BloomFilter {
 struct LSMEntry {
     id: VectorId,
     vector: Option<Vec<f32>>, // None = tombstone
-    metadata: Option<HashMap<String, serde_json::Value>>,
+    metadata: Option<HashMap<String, sonic_rs::Value>>,
     seq: u64, // higher wins on conflict
 }
 
@@ -116,7 +116,7 @@ impl MemTable {
         &mut self,
         id: VectorId,
         vector: Option<Vec<f32>>,
-        metadata: Option<HashMap<String, serde_json::Value>>,
+        metadata: Option<HashMap<String, sonic_rs::Value>>,
         seq: u64,
     ) -> bool {
         self.entries.insert(
@@ -312,7 +312,7 @@ impl LSMIndex {
         &mut self,
         id: VectorId,
         vector: Vec<f32>,
-        metadata: Option<HashMap<String, serde_json::Value>>,
+        metadata: Option<HashMap<String, sonic_rs::Value>>,
     ) {
         let bytes = (vector.len() * 4 + id.len()) as u64;
         self.bytes_written_user += bytes;

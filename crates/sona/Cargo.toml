@@ -30,7 +30,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["serde-support"]
 wasm = ["wasm-bindgen", "wasm-bindgen-futures", "console_error_panic_hook", "js-sys", "web-sys", "getrandom", "serde-support"]
 napi = ["dep:napi", "dep:napi-derive", "serde-support"]
-serde-support = ["serde", "serde_json"]
+serde-support = ["serde", "sonic-rs"]
 
 [dependencies]
 # Core dependencies
@@ -40,7 +40,7 @@ rand = "0.10.1"
 
 # Serialization (optional)
 serde = { version = "1.0.228", features = ["derive"], optional = true }
-serde_json = { version = "1.0.149", optional = true }
+sonic-rs = { version = "0.5.8", features = ["avx512"], optional = true }
 
 # WASM dependencies (optional)
 wasm-bindgen = { version = "0.2", optional = true }

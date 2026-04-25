@@ -413,7 +413,7 @@ fn test_concurrent_metadata_updates() {
         let handle = thread::spawn(move || {
             for i in 0..10 {
                 let mut metadata = HashMap::new();
-                metadata.insert(format!("thread_{}", thread_id), serde_json::json!(i));
+                metadata.insert(format!("thread_{}", thread_id), sonic_rs::json!(i));
 
                 // Update vector with metadata
                 let id = format!("vec_{}", i * 5 + thread_id);

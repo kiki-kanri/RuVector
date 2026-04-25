@@ -27,7 +27,7 @@ pub struct VectorEntry {
     /// Vector data
     pub vector: Vec<f32>,
     /// Optional metadata
-    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    pub metadata: Option<HashMap<String, sonic_rs::Value>>,
 }
 
 /// Search query parameters
@@ -38,7 +38,7 @@ pub struct SearchQuery {
     /// Number of results to return (top-k)
     pub k: usize,
     /// Optional metadata filters
-    pub filter: Option<HashMap<String, serde_json::Value>>,
+    pub filter: Option<HashMap<String, sonic_rs::Value>>,
     /// Optional ef_search parameter for HNSW (overrides default)
     pub ef_search: Option<usize>,
 }
@@ -53,7 +53,7 @@ pub struct SearchResult {
     /// Vector data (optional)
     pub vector: Option<Vec<f32>>,
     /// Metadata (optional)
-    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    pub metadata: Option<HashMap<String, sonic_rs::Value>>,
 }
 
 /// Database configuration options

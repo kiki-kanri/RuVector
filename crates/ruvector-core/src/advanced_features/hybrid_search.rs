@@ -306,7 +306,7 @@ struct CombinedScore {
     vector_score: Option<f32>,
     keyword_score: Option<f32>,
     vector: Option<Vec<f32>>,
-    metadata: Option<HashMap<String, serde_json::Value>>,
+    metadata: Option<HashMap<String, sonic_rs::Value>>,
 }
 
 // Helper functions

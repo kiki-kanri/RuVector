@@ -86,7 +86,7 @@ impl HuggingFaceHub {
         // Create adapter config
         let adapter_config = self.create_adapter_config(engine, config);
         let config_path = temp_dir.join("adapter_config.json");
-        let config_json = serde_json::to_string_pretty(&adapter_config)?;
+        let config_json = sonic_rs::to_string_pretty(&adapter_config)?;
         std::fs::write(&config_path, config_json).map_err(ExportError::Io)?;
 
         // Upload to Hub (using git LFS approach)
@@ -205,7 +205,7 @@ impl HuggingFaceHub {
 
         // Use simple HTTP client approach (blocking for simplicity)
         // In production, you'd use reqwest or similar
-        let body = serde_json::to_string(&create_request)?;
+        let body = sonic_rs::to_string(&create_request)?;
 
         let output = std::process::Command::new("curl")
             .args([
@@ -384,7 +384,7 @@ struct CreateRepoRequest {
 pub struct AdapterConfigJson {
     pub peft_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_mapping: Option<serde_json::Value>,
+    pub auto_mapping: Option<sonic_rs::Value>,
     pub base_model_name_or_path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub revision: Option<String>,
@@ -478,7 +478,7 @@ mod tests {
             layers_pattern: None,
         };
 
-        let json = serde_json::to_string_pretty(&config).unwrap();
+        let json = sonic_rs::to_string_pretty(&config).unwrap();
         assert!(json.contains("LORA"));
         assert!(json.contains("phi-4"));
     }

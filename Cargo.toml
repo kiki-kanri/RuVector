@@ -235,7 +235,7 @@ getrandom = { version = "0.3", features = ["wasm_js"] }
 
 # Async runtime
 tokio = { version = "1.52.1", features = ["rt-multi-thread", "sync", "macros"] }
-futures = "0.3"
+futures = "0.3.32"
 
 # Error handling and utilities
 thiserror = "2.0.18"

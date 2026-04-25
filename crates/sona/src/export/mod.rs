@@ -160,7 +160,7 @@ impl<'a> HuggingFaceExporter<'a> {
 
         // Export config
         let config_path = output_dir.join("adapter_config.json");
-        let config_json = serde_json::to_string_pretty(&self.create_adapter_config())?;
+        let config_json = sonic_rs::to_string_pretty(&self.create_adapter_config())?;
         std::fs::write(&config_path, config_json).map_err(ExportError::Io)?;
 
         // Export README
@@ -276,7 +276,7 @@ Generated with [ruvector-sona](https://crates.io/crates/ruvector-sona) v0.1.0
 pub struct AdapterConfig {
     pub peft_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_mapping: Option<serde_json::Value>,
+    pub auto_mapping: Option<sonic_rs::Value>,
     pub base_model_name_or_path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub revision: Option<String>,
@@ -323,7 +323,7 @@ pub enum ExportType {
 #[derive(Debug)]
 pub enum ExportError {
     Io(std::io::Error),
-    Serialization(serde_json::Error),
+    Serialization(sonic_rs::Error),
     InvalidData(String),
     HubError(String),
 }
@@ -334,8 +334,8 @@ impl From<std::io::Error> for ExportError {
     }
 }
 
-impl From<serde_json::Error> for ExportError {
-    fn from(e: serde_json::Error) -> Self {
+impl From<sonic_rs::Error> for ExportError {
+    fn from(e: sonic_rs::Error) -> Self {
         ExportError::Serialization(e)
     }
 }
@@ -385,7 +385,7 @@ mod tests {
             layers_pattern: None,
         };
 
-        let json = serde_json::to_string_pretty(&config).unwrap();
+        let json = sonic_rs::to_string_pretty(&config).unwrap();
         assert!(json.contains("LORA"));
         assert!(json.contains("phi-4"));
     }

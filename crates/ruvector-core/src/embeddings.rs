@@ -283,7 +283,9 @@ impl ApiEmbedding {
 #[cfg(feature = "api-embeddings")]
 impl EmbeddingProvider for ApiEmbedding {
     fn embed(&self, text: &str) -> Result<Vec<f32>> {
-        let request_body = serde_json::json!({
+        use sonic_rs::{JsonContainerTrait, JsonValueTrait};
+
+        let request_body = sonic_rs::json!({
             "input": text,
             "model": self.model,
         });
@@ -310,7 +312,7 @@ impl EmbeddingProvider for ApiEmbedding {
             )));
         }
 
-        let response_json: serde_json::Value = response.json().map_err(|e| {
+        let response_json: sonic_rs::Value = response.json().map_err(|e| {
             RuvectorError::ModelInferenceError(format!("Failed to parse response: {}", e))
         })?;
 

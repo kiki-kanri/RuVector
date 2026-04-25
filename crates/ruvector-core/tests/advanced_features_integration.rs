@@ -10,11 +10,11 @@ use std::collections::HashMap;
 
 // Helper function to generate random vectors
 fn generate_vectors(count: usize, dimensions: usize) -> Vec<Vec<f32>> {
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
+    use rand::RngExt;
+    let mut rng = rand::rng();
 
     (0..count)
-        .map(|_| (0..dimensions).map(|_| rng.gen::<f32>()).collect())
+        .map(|_| (0..dimensions).map(|_| rng.random::<f32>()).collect())
         .collect()
 }
 
@@ -138,7 +138,7 @@ fn test_enhanced_pq_768d() {
 
 #[test]
 fn test_filtered_search_pre_filter() {
-    use serde_json::json;
+    use sonic_rs::json;
 
     // Create metadata store
     let mut metadata_store = HashMap::new();
@@ -173,7 +173,7 @@ fn test_filtered_search_pre_filter() {
 
 #[test]
 fn test_filtered_search_auto_strategy() {
-    use serde_json::json;
+    use sonic_rs::json;
 
     let mut metadata_store = HashMap::new();
     for i in 0..1000 {

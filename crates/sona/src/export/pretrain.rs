@@ -294,7 +294,7 @@ impl<'a> PretrainPipeline<'a> {
 
         // Generate config files
         let config_path = output_dir.join("pretrain_config.json");
-        let config_json = serde_json::to_string_pretty(&self.config)?;
+        let config_json = sonic_rs::to_string_pretty(&self.config)?;
         std::fs::write(&config_path, config_json).map_err(ExportError::Io)?;
 
         // Generate requirements
@@ -635,7 +635,7 @@ mod tests {
     #[test]
     fn test_config_serialization() {
         let config = PretrainConfig::default();
-        let json = serde_json::to_string_pretty(&config).unwrap();
+        let json = sonic_rs::to_string_pretty(&config).unwrap();
 
         assert!(json.contains("\"rank\": 2"));
         assert!(json.contains("\"learning_rate\": 0.002"));

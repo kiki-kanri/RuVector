@@ -187,7 +187,7 @@ impl Default for VectorCypherExecutor {
 /// Query execution result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueryResult {
-    pub rows: Vec<HashMap<String, serde_json::Value>>,
+    pub rows: Vec<HashMap<String, sonic_rs::Value>>,
     pub execution_time_ms: u64,
     pub stats: ExecutionStats,
 }

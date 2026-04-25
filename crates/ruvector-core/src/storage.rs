@@ -16,8 +16,6 @@ use parking_lot::Mutex;
 #[cfg(feature = "storage")]
 use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
 #[cfg(feature = "storage")]
-use serde_json;
-#[cfg(feature = "storage")]
 use std::collections::HashMap;
 #[cfg(feature = "storage")]
 use std::path::{Path, PathBuf};
@@ -154,7 +152,7 @@ impl VectorStorage {
             // Store metadata if present
             if let Some(metadata) = &entry.metadata {
                 let mut meta_table = write_txn.open_table(METADATA_TABLE)?;
-                let metadata_json = serde_json::to_string(metadata)
+                let metadata_json = sonic_rs::to_string(metadata)
                     .map_err(|e| RuvectorError::SerializationError(e.to_string()))?;
                 meta_table.insert(id.as_str(), metadata_json.as_str())?;
             }
@@ -193,7 +191,7 @@ impl VectorStorage {
 
                 // Insert metadata if present
                 if let Some(metadata) = &entry.metadata {
-                    let metadata_json = serde_json::to_string(metadata)
+                    let metadata_json = sonic_rs::to_string(metadata)
                         .map_err(|e| RuvectorError::SerializationError(e.to_string()))?;
                     meta_table.insert(id.as_str(), metadata_json.as_str())?;
                 }
@@ -224,7 +222,7 @@ impl VectorStorage {
         let metadata = if let Some(meta_data) = meta_table.get(id)? {
             let meta_str = meta_data.value();
             Some(
-                serde_json::from_str(meta_str)
+                sonic_rs::from_str(meta_str)
                     .map_err(|e| RuvectorError::SerializationError(e.to_string()))?,
             )
         } else {
@@ -284,7 +282,7 @@ impl VectorStorage {
 
     /// Save database configuration to persistent storage
     pub fn save_config(&self, options: &DbOptions) -> Result<()> {
-        let config_json = serde_json::to_string(options)
+        let config_json = sonic_rs::to_string(options)
             .map_err(|e| RuvectorError::SerializationError(e.to_string()))?;
 
         let write_txn = self.db.begin_write()?;
@@ -311,7 +309,7 @@ impl VectorStorage {
             return Ok(None);
         };
 
-        let config: DbOptions = serde_json::from_str(config_data.value())
+        let config: DbOptions = sonic_rs::from_str(config_data.value())
             .map_err(|e| RuvectorError::SerializationError(e.to_string()))?;
 
         Ok(Some(config))

@@ -6,7 +6,7 @@
 use crate::error::{Result, RuvectorError};
 use crate::types::{VectorEntry, VectorId};
 use dashmap::DashMap;
-use serde_json::Value as JsonValue;
+use sonic_rs::Value as JsonValue;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// In-memory storage backend using DashMap for thread-safe concurrent access
@@ -52,7 +52,7 @@ impl MemoryStorage {
         if let Some(metadata) = &entry.metadata {
             self.metadata.insert(
                 id.clone(),
-                serde_json::Value::Object(
+                sonic_rs::Value::Object(
                     metadata
                         .iter()
                         .map(|(k, v)| (k.clone(), v.clone()))
@@ -83,7 +83,7 @@ impl MemoryStorage {
             if let Some(metadata) = &entry.metadata {
                 self.metadata.insert(
                     id.clone(),
-                    serde_json::Value::Object(
+                    sonic_rs::Value::Object(
                         metadata
                             .iter()
                             .map(|(k, v)| (k.clone(), v.clone()))
@@ -103,7 +103,7 @@ impl MemoryStorage {
         if let Some(vector_ref) = self.vectors.get(id) {
             let vector = vector_ref.clone();
             let metadata = self.metadata.get(id).and_then(|m| {
-                if let serde_json::Value::Object(map) = m.value() {
+                if let sonic_rs::Value::Object(map) = m.value() {
                     Some(map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
                 } else {
                     None
@@ -161,7 +161,7 @@ impl MemoryStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use sonic_rs::json;
 
     #[test]
     fn test_insert_and_get() {

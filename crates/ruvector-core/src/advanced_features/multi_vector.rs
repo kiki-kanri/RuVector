@@ -42,7 +42,7 @@ pub struct MultiVectorEntry {
     /// Precomputed L2 norms for each token embedding (used for cosine similarity).
     pub norms: Vec<f32>,
     /// Optional metadata associated with the document.
-    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    pub metadata: Option<HashMap<String, sonic_rs::Value>>,
 }
 
 /// Late-interaction scoring variant.
@@ -108,7 +108,7 @@ impl MultiVectorIndex {
         &mut self,
         doc_id: VectorId,
         embeddings: Vec<Vec<f32>>,
-        metadata: Option<HashMap<String, serde_json::Value>>,
+        metadata: Option<HashMap<String, sonic_rs::Value>>,
     ) -> Result<()> {
         if embeddings.is_empty() {
             return Err(RuvectorError::InvalidParameter(
@@ -526,7 +526,7 @@ mod tests {
     fn test_metadata_preserved() {
         let mut index = default_index();
         let mut meta = HashMap::new();
-        meta.insert("source".into(), serde_json::json!("colbert"));
+        meta.insert("source".into(), sonic_rs::json!("colbert"));
         index
             .insert("doc1".into(), vec![vec![1.0, 0.0]], Some(meta))
             .unwrap();

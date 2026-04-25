@@ -242,7 +242,7 @@ impl<'a> SafeTensorsExporter<'a> {
 
         // Serialize header to JSON
         let header_json =
-            serde_json::to_string(&header_data).map_err(ExportError::Serialization)?;
+            sonic_rs::to_string(&header_data).map_err(ExportError::Serialization)?;
         let header_bytes = header_json.as_bytes();
 
         // Build final buffer

@@ -31,7 +31,7 @@ fn test_complete_insert_search_workflow() {
     let vectors: Vec<VectorEntry> = (0..100)
         .map(|i| {
             let mut metadata = HashMap::new();
-            metadata.insert("index".to_string(), serde_json::json!(i));
+            metadata.insert("index".to_string(), sonic_rs::json!(i));
 
             VectorEntry {
                 id: Some(format!("vec_{}", i)),
@@ -345,8 +345,8 @@ fn test_complex_metadata_filtering() {
     // Insert vectors with different categories and values
     for i in 0..50 {
         let mut metadata = HashMap::new();
-        metadata.insert("category".to_string(), serde_json::json!(i % 3));
-        metadata.insert("value".to_string(), serde_json::json!(i / 10));
+        metadata.insert("category".to_string(), sonic_rs::json!(i % 3));
+        metadata.insert("value".to_string(), sonic_rs::json!(i / 10));
 
         db.insert(VectorEntry {
             id: Some(format!("vec_{}", i)),
@@ -358,7 +358,7 @@ fn test_complex_metadata_filtering() {
 
     // Search with single filter
     let mut filter1 = HashMap::new();
-    filter1.insert("category".to_string(), serde_json::json!(0));
+    filter1.insert("category".to_string(), sonic_rs::json!(0));
 
     let query: Vec<f32> = (0..16).map(|j| (j as f32) * 0.1).collect();
     let results1 = db
@@ -373,12 +373,12 @@ fn test_complex_metadata_filtering() {
     // Should only get vectors where i % 3 == 0
     for result in &results1 {
         let meta = result.metadata.as_ref().unwrap();
-        assert_eq!(meta.get("category").unwrap(), &serde_json::json!(0));
+        assert_eq!(meta.get("category").unwrap(), &sonic_rs::json!(0));
     }
 
     // Search with different filter
     let mut filter2 = HashMap::new();
-    filter2.insert("value".to_string(), serde_json::json!(2));
+    filter2.insert("value".to_string(), sonic_rs::json!(2));
 
     let results2 = db
         .search(SearchQuery {
@@ -392,7 +392,7 @@ fn test_complex_metadata_filtering() {
     // Should only get vectors where i / 10 == 2 (i.e., i in 20..30)
     for result in &results2 {
         let meta = result.metadata.as_ref().unwrap();
-        assert_eq!(meta.get("value").unwrap(), &serde_json::json!(2));
+        assert_eq!(meta.get("value").unwrap(), &sonic_rs::json!(2));
     }
 }
 

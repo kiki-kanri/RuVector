@@ -11,10 +11,10 @@ description = "Distributed Neo4j-compatible hypergraph database with SIMD optimi
 
 [dependencies]
 # RuVector dependencies
-ruvector-core = { version = "2.0.1", path = "../ruvector-core", default-features = false, features = ["simd", "parallel"] }
-ruvector-raft = { version = "2.0.1", path = "../ruvector-raft", optional = true }
-ruvector-cluster = { version = "2.0.1", path = "../ruvector-cluster", optional = true }
-ruvector-replication = { version = "2.0.1", path = "../ruvector-replication", optional = true }
+ruvector-core = { version = "2.2.0", path = "../ruvector-core", default-features = false, features = ["simd", "parallel"] }
+ruvector-raft = { version = "2.2.0", path = "../ruvector-raft", optional = true }
+ruvector-cluster = { version = "2.2.0", path = "../ruvector-cluster", optional = true }
+ruvector-replication = { version = "2.2.0", path = "../ruvector-replication", optional = true }
 
 # Storage and indexing (optional for WASM)
 redb = { workspace = true, optional = true }
@@ -25,13 +25,13 @@ hnsw_rs = { workspace = true, optional = true }
 simsimd = { workspace = true, optional = true }
 rayon = { workspace = true }
 crossbeam = { workspace = true }
-num_cpus = "1.16"
+num_cpus = "1.17.0"
 
 # Serialization
 rkyv = { workspace = true }
 bincode = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
+sonic-rs = { version = "0.5.8", features = ["avx512"] }
 
 # Async runtime (optional for WASM)
 tokio = { workspace = true, features = ["rt-multi-thread", "sync", "macros", "time", "net"], optional = true }
@@ -49,32 +49,32 @@ once_cell = { workspace = true }
 
 # Math and numerics
 ndarray = { workspace = true }
-rand = { workspace = true }
+rand = "0.10.1"
 rand_distr = { workspace = true }
-ordered-float = "4.2"
+ordered-float = "5.3.0"
 
 # Time and UUID
 chrono = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }
 
 # Graph algorithms and partitioning
-petgraph = "0.6"
-roaring = "0.10"  # Roaring bitmaps for label indexes
+petgraph = "0.8.3"
+roaring = "0.11.4"  # Roaring bitmaps for label indexes
 
 # Query parsing (Cypher)
-nom = "7.1"
-nom_locate = "4.2"
-pest = { version = "2.7", optional = true }
-pest_derive = { version = "2.7", optional = true }
-lalrpop-util = { version = "0.21", optional = true }
+nom = "7.1.3"
+nom_locate = "5.0.0"
+pest = { version = "2.8.6", optional = true }
+pest_derive = { version = "2.8.6", optional = true }
+lalrpop-util = { version = "0.23.1", optional = true }
 
 # Cache
-lru = "0.16"
-moka = { version = "0.12", features = ["future"], optional = true }
+lru = "0.17.0"
+moka = { version = "0.12.15", features = ["future"], optional = true }
 
 # Compression (for storage optimization, optional for WASM)
-zstd = { version = "0.13", optional = true }
-lz4 = { version = "1.24", optional = true }
+zstd = { version = "0.13.3", optional = true }
+lz4 = { version = "1.28.1", optional = true }
 
 # Networking (for federation)
 tonic = { version = "0.12", features = ["transport"], optional = true }
@@ -83,25 +83,25 @@ tower = { version = "0.4", optional = true }
 hyper = { version = "1.4", optional = true }
 
 # Hashing for sharding
-blake3 = { version = "1.5", optional = true }
-xxhash-rust = { version = "0.8", features = ["xxh3"], optional = true }
+blake3 = { version = "1.8.5", optional = true }
+xxhash-rust = { version = "0.8.15", features = ["xxh3"], optional = true }
 
 # Metrics
-prometheus = { version = "0.14", optional = true }
+prometheus = { version = "0.14.0", optional = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
 proptest = { workspace = true }
 mockall = { workspace = true }
-tempfile = "3.13"
+tempfile = "3.27.0"
 tracing-subscriber = { workspace = true }
-tokio-test = "0.4"
+tokio-test = "0.4.5"
 
 # Benchmark datasets
-csv = "1.3"
+csv = "1.4.0"
 
 [build-dependencies]
-pest_generator = "2.7"
+pest_generator = "2.8.6"
 
 [features]
 default = ["full"]

@@ -248,7 +248,7 @@ mod storage_tests {
         let storage = VectorStorage::new(dir.path().join("test.db"), 3)?;
 
         let mut metadata = HashMap::new();
-        metadata.insert("key".to_string(), serde_json::json!("value"));
+        metadata.insert("key".to_string(), sonic_rs::json!("value"));
 
         let entry = VectorEntry {
             id: Some("meta_test".to_string()),
@@ -485,10 +485,10 @@ mod vector_db_tests {
 
         // Insert vectors with metadata
         let mut meta1 = HashMap::new();
-        meta1.insert("category".to_string(), serde_json::json!("A"));
+        meta1.insert("category".to_string(), sonic_rs::json!("A"));
 
         let mut meta2 = HashMap::new();
-        meta2.insert("category".to_string(), serde_json::json!("B"));
+        meta2.insert("category".to_string(), sonic_rs::json!("B"));
 
         db.insert(VectorEntry {
             id: Some("v1".to_string()),
@@ -504,7 +504,7 @@ mod vector_db_tests {
 
         // Search with filter
         let mut filter = HashMap::new();
-        filter.insert("category".to_string(), serde_json::json!("A"));
+        filter.insert("category".to_string(), sonic_rs::json!("A"));
 
         let results = db.search(SearchQuery {
             vector: vec![1.0, 0.0, 0.0],

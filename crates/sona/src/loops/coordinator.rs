@@ -7,6 +7,7 @@ use crate::lora::{BaseLoRA, MicroLoRA};
 use crate::reasoning_bank::{PatternConfig, ReasoningBank};
 use crate::types::{QueryTrajectory, SonaConfig};
 use parking_lot::RwLock;
+use sonic_rs::{JsonContainerTrait, JsonValueTrait};
 use std::sync::Arc;
 
 /// Loop coordinator managing all learning loops
@@ -181,7 +182,7 @@ impl LoopCoordinator {
         let rb = self.reasoning_bank.read();
         let patterns = rb.get_all_patterns();
         let ewc = self.ewc.read();
-        serde_json::json!({
+        sonic_rs::json!({
             "version": 1,
             "patterns": patterns,
             "ewc_task_count": ewc.task_count(),
@@ -194,8 +195,8 @@ impl LoopCoordinator {
     /// Restore state from JSON (fixes #274)
     /// Call after construction to restore learned patterns from a previous session.
     pub fn load_state(&self, json: &str) -> Result<usize, String> {
-        let state: serde_json::Value =
-            serde_json::from_str(json).map_err(|e| format!("Invalid state JSON: {}", e))?;
+        let state: sonic_rs::Value =
+            sonic_rs::from_str(json).map_err(|e| format!("Invalid state JSON: {}", e))?;
 
         let mut loaded = 0;
 
@@ -203,7 +204,7 @@ impl LoopCoordinator {
         if let Some(patterns) = state.get("patterns").and_then(|p| p.as_array()) {
             let mut rb = self.reasoning_bank.write();
             for p in patterns {
-                if let Ok(pattern) = serde_json::from_value::<crate::LearnedPattern>(p.clone()) {
+                if let Ok(pattern) = sonic_rs::from_value::<crate::LearnedPattern>(p) {
                     rb.insert_pattern(pattern);
                     loaded += 1;
                 }

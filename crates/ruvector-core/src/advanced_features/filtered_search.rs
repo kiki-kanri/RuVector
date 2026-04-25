@@ -25,23 +25,23 @@ pub enum FilterStrategy {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FilterExpression {
     /// Equality check: field == value
-    Eq(String, serde_json::Value),
+    Eq(String, sonic_rs::Value),
     /// Not equal: field != value
-    Ne(String, serde_json::Value),
+    Ne(String, sonic_rs::Value),
     /// Greater than: field > value
-    Gt(String, serde_json::Value),
+    Gt(String, sonic_rs::Value),
     /// Greater than or equal: field >= value
-    Gte(String, serde_json::Value),
+    Gte(String, sonic_rs::Value),
     /// Less than: field < value
-    Lt(String, serde_json::Value),
+    Lt(String, sonic_rs::Value),
     /// Less than or equal: field <= value
-    Lte(String, serde_json::Value),
+    Lte(String, sonic_rs::Value),
     /// In list: field in [values]
-    In(String, Vec<serde_json::Value>),
+    In(String, Vec<sonic_rs::Value>),
     /// Not in list: field not in [values]
-    NotIn(String, Vec<serde_json::Value>),
+    NotIn(String, Vec<sonic_rs::Value>),
     /// Range check: min <= field <= max
-    Range(String, serde_json::Value, serde_json::Value),
+    Range(String, sonic_rs::Value, sonic_rs::Value),
     /// Logical AND
     And(Vec<FilterExpression>),
     /// Logical OR
@@ -52,7 +52,7 @@ pub enum FilterExpression {
 
 impl FilterExpression {
     /// Evaluate filter against metadata
-    pub fn evaluate(&self, metadata: &HashMap<String, serde_json::Value>) -> bool {
+    pub fn evaluate(&self, metadata: &HashMap<String, sonic_rs::Value>) -> bool {
         match self {
             FilterExpression::Eq(field, value) => metadata.get(field) == Some(value),
             FilterExpression::Ne(field, value) => metadata.get(field) != Some(value),
@@ -150,7 +150,7 @@ pub struct FilteredSearch {
     /// Strategy for applying filter
     pub strategy: FilterStrategy,
     /// Metadata store: id -> metadata
-    pub metadata_store: HashMap<VectorId, HashMap<String, serde_json::Value>>,
+    pub metadata_store: HashMap<VectorId, HashMap<String, sonic_rs::Value>>,
 }
 
 impl FilteredSearch {
@@ -158,7 +158,7 @@ impl FilteredSearch {
     pub fn new(
         filter: FilterExpression,
         strategy: FilterStrategy,
-        metadata_store: HashMap<VectorId, HashMap<String, serde_json::Value>>,
+        metadata_store: HashMap<VectorId, HashMap<String, sonic_rs::Value>>,
     ) -> Self {
         Self {
             filter,
@@ -245,31 +245,53 @@ impl FilteredSearch {
 }
 
 // Helper function to compare JSON values
-fn compare_values(a: &serde_json::Value, b: &serde_json::Value) -> i32 {
-    use serde_json::Value;
+fn compare_values(a: &sonic_rs::Value, b: &sonic_rs::Value) -> i32 {
+    use sonic_rs::{JsonType, JsonValueTrait};
+    use std::cmp::Ordering;
 
-    match (a, b) {
-        (Value::Number(a), Value::Number(b)) => {
-            let a_f64 = a.as_f64().unwrap_or(0.0);
-            let b_f64 = b.as_f64().unwrap_or(0.0);
-            if a_f64 < b_f64 {
-                -1
-            } else if a_f64 > b_f64 {
-                1
-            } else {
-                0
-            }
+    let type_a = a.get_type();
+    let type_b = b.get_type();
+
+    if type_a == type_b {
+        match type_a {
+            JsonType::Number => {
+                let a_f64 = a.as_f64().unwrap_or(0.0);
+                let b_f64 = b.as_f64().unwrap_or(0.0);
+                return match a_f64.partial_cmp(&b_f64) {
+                    Some(Ordering::Less) => -1,
+                    Some(Ordering::Greater) => 1,
+                    _ => 0,
+                };
+            },
+            JsonType::String => {
+                if let (Some(a_str), Some(b_str)) = (a.as_str(), b.as_str()) {
+                    return match a_str.cmp(b_str) {
+                        Ordering::Less => -1,
+                        Ordering::Greater => 1,
+                        Ordering::Equal => 0,
+                    };
+                }
+            },
+            JsonType::Boolean => {
+                if let (Some(a_bool), Some(b_bool)) = (a.as_bool(), b.as_bool()) {
+                    return match a_bool.cmp(&b_bool) {
+                        Ordering::Less => -1,
+                        Ordering::Greater => 1,
+                        Ordering::Equal => 0,
+                    };
+                }
+            },
+            _ => return 0,
         }
-        (Value::String(a), Value::String(b)) => a.cmp(b) as i32,
-        (Value::Bool(a), Value::Bool(b)) => a.cmp(b) as i32,
-        _ => 0,
     }
+
+    0
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use sonic_rs::json;
 
     #[test]
     fn test_filter_eq() {

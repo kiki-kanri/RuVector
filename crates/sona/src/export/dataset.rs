@@ -61,7 +61,7 @@ impl<'a> DatasetExporter<'a> {
                 },
             };
 
-            let json = serde_json::to_string(&record).map_err(ExportError::Serialization)?;
+            let json = sonic_rs::to_string(&record).map_err(ExportError::Serialization)?;
             writeln!(writer, "{}", json).map_err(ExportError::Io)?;
             items_exported += 1;
         }
@@ -137,7 +137,7 @@ impl<'a> DatasetExporter<'a> {
                 },
             };
 
-            let json = serde_json::to_string(&pair).map_err(ExportError::Serialization)?;
+            let json = sonic_rs::to_string(&pair).map_err(ExportError::Serialization)?;
             writeln!(writer, "{}", json).map_err(ExportError::Io)?;
             items_exported += 1;
         }
@@ -192,7 +192,7 @@ impl<'a> DatasetExporter<'a> {
                 },
             };
 
-            let json = serde_json::to_string(&target).map_err(ExportError::Serialization)?;
+            let json = sonic_rs::to_string(&target).map_err(ExportError::Serialization)?;
             writeln!(writer, "{}", json).map_err(ExportError::Io)?;
             items_exported += 1;
         }
@@ -370,7 +370,7 @@ mod tests {
             },
         };
 
-        let json = serde_json::to_string(&record).unwrap();
+        let json = sonic_rs::to_string(&record).unwrap();
         assert!(json.contains("test-pattern"));
         assert!(json.contains("0.85"));
     }
@@ -399,7 +399,7 @@ mod tests {
             },
         };
 
-        let json = serde_json::to_string(&pair).unwrap();
+        let json = sonic_rs::to_string(&pair).unwrap();
         assert!(json.contains("gpt-4"));
         assert!(json.contains("0.9"));
     }

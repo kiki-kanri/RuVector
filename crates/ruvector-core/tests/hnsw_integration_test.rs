@@ -6,13 +6,13 @@ use ruvector_core::types::{DistanceMetric, HnswConfig};
 use ruvector_core::Result;
 
 fn generate_random_vectors(count: usize, dimensions: usize, seed: u64) -> Vec<Vec<f32>> {
-    use rand::{Rng, SeedableRng};
+    use rand::{RngExt, SeedableRng};
     let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
 
     (0..count)
         .map(|_| {
             (0..dimensions)
-                .map(|_| rng.gen::<f32>() * 2.0 - 1.0)
+                .map(|_| rng.random::<f32>() * 2.0 - 1.0)
                 .collect()
         })
         .collect()

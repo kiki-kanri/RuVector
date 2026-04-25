@@ -86,7 +86,7 @@ struct MatryoshkaEntry {
     /// Precomputed L2 norm of the full embedding.
     full_norm: f32,
     /// Optional metadata.
-    metadata: Option<HashMap<String, serde_json::Value>>,
+    metadata: Option<HashMap<String, sonic_rs::Value>>,
 }
 
 /// Matryoshka embedding index supporting adaptive-dimension search.
@@ -149,7 +149,7 @@ impl MatryoshkaIndex {
         &mut self,
         id: VectorId,
         embedding: Vec<f32>,
-        metadata: Option<HashMap<String, serde_json::Value>>,
+        metadata: Option<HashMap<String, sonic_rs::Value>>,
     ) -> Result<()> {
         if embedding.len() != self.config.full_dim {
             return Err(RuvectorError::DimensionMismatch {
@@ -293,7 +293,7 @@ impl MatryoshkaIndex {
         let query_full = &query[..self.config.full_dim];
         let query_full_norm = compute_norm(query_full);
 
-        let mut reranked: Vec<(VectorId, f32, Option<HashMap<String, serde_json::Value>>)> =
+        let mut reranked: Vec<(VectorId, f32, Option<HashMap<String, sonic_rs::Value>>)> =
             coarse_results
                 .into_iter()
                 .filter_map(|r| {

@@ -31,6 +31,7 @@ use crate::vector_db::VectorDB;
 use parking_lot::RwLock;
 use redb::{Database, ReadableDatabase, TableDefinition};
 use serde::{Deserialize, Serialize};
+use sonic_rs::JsonValueTrait;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -41,7 +42,7 @@ const CAUSAL_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("causal_
 const LEARNING_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("learning_sessions");
 
 /// Reflexion episode for self-critique memory
-/// Note: Serialized using JSON (not bincode) due to serde_json::Value in metadata field
+/// Note: Serialized using JSON (not bincode) due to sonic_rs::Value in metadata field
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReflexionEpisode {
     pub id: String,
@@ -51,7 +52,7 @@ pub struct ReflexionEpisode {
     pub critique: String,
     pub embedding: Vec<f32>,
     pub timestamp: i64,
-    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    pub metadata: Option<HashMap<String, sonic_rs::Value>>,
 }
 
 /// Skill definition in the library
@@ -286,8 +287,8 @@ impl AgenticDB {
         let write_txn = self.db.begin_write()?;
         {
             let mut table = write_txn.open_table(REFLEXION_TABLE)?;
-            // Use JSON encoding for ReflexionEpisode (contains serde_json::Value which isn't bincode-compatible)
-            let json = serde_json::to_vec(&episode)
+            // Use JSON encoding for ReflexionEpisode (contains sonic_rs::Value which isn't bincode-compatible)
+            let json = sonic_rs::to_vec(&episode)
                 .map_err(|e| RuvectorError::SerializationError(e.to_string()))?;
             table.insert(id.as_str(), json.as_slice())?;
         }
@@ -299,8 +300,8 @@ impl AgenticDB {
             vector: embedding,
             metadata: Some({
                 let mut meta = HashMap::new();
-                meta.insert("type".to_string(), serde_json::json!("reflexion"));
-                meta.insert("episode_id".to_string(), serde_json::json!(id.clone()));
+                meta.insert("type".to_string(), sonic_rs::json!("reflexion"));
+                meta.insert("episode_id".to_string(), sonic_rs::json!(id.clone()));
                 meta
             }),
         })?;
@@ -323,7 +324,7 @@ impl AgenticDB {
             k,
             filter: Some({
                 let mut filter = HashMap::new();
-                filter.insert("type".to_string(), serde_json::json!("reflexion"));
+                filter.insert("type".to_string(), sonic_rs::json!("reflexion"));
                 filter
             }),
             ef_search: None,
@@ -339,8 +340,8 @@ impl AgenticDB {
                 if let Some(episode_id) = metadata.get("episode_id") {
                     let id = episode_id.as_str().unwrap();
                     if let Some(data) = table.get(id)? {
-                        // Use JSON decoding for ReflexionEpisode (contains serde_json::Value which isn't bincode-compatible)
-                        let episode: ReflexionEpisode = serde_json::from_slice(data.value())
+                        // Use JSON decoding for ReflexionEpisode (contains sonic_rs::Value which isn't bincode-compatible)
+                        let episode: ReflexionEpisode = sonic_rs::from_slice(data.value())
                             .map_err(|e| RuvectorError::SerializationError(e.to_string()))?;
                         episodes.push(episode);
                     }
@@ -395,8 +396,8 @@ impl AgenticDB {
             vector: embedding,
             metadata: Some({
                 let mut meta = HashMap::new();
-                meta.insert("type".to_string(), serde_json::json!("skill"));
-                meta.insert("skill_id".to_string(), serde_json::json!(id.clone()));
+                meta.insert("type".to_string(), sonic_rs::json!("skill"));
+                meta.insert("skill_id".to_string(), sonic_rs::json!(id.clone()));
                 meta
             }),
         })?;
@@ -413,7 +414,7 @@ impl AgenticDB {
             k,
             filter: Some({
                 let mut filter = HashMap::new();
-                filter.insert("type".to_string(), serde_json::json!("skill"));
+                filter.insert("type".to_string(), sonic_rs::json!("skill"));
                 filter
             }),
             ef_search: None,
@@ -507,9 +508,9 @@ impl AgenticDB {
             vector: embedding,
             metadata: Some({
                 let mut meta = HashMap::new();
-                meta.insert("type".to_string(), serde_json::json!("causal"));
-                meta.insert("causal_id".to_string(), serde_json::json!(id.clone()));
-                meta.insert("confidence".to_string(), serde_json::json!(confidence));
+                meta.insert("type".to_string(), sonic_rs::json!("causal"));
+                meta.insert("causal_id".to_string(), sonic_rs::json!(id.clone()));
+                meta.insert("confidence".to_string(), sonic_rs::json!(confidence));
                 meta
             }),
         })?;
@@ -535,7 +536,7 @@ impl AgenticDB {
             k: k * 2, // Get more results for utility ranking
             filter: Some({
                 let mut filter = HashMap::new();
-                filter.insert("type".to_string(), serde_json::json!("causal"));
+                filter.insert("type".to_string(), sonic_rs::json!("causal"));
                 filter
             }),
             ef_search: None,
@@ -817,7 +818,7 @@ pub struct PolicyEntry {
     /// Action taken
     pub action: PolicyAction,
     /// Metadata
-    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    pub metadata: Option<HashMap<String, sonic_rs::Value>>,
 }
 
 impl<'a> PolicyMemoryStore<'a> {
@@ -857,12 +858,12 @@ impl<'a> PolicyMemoryStore<'a> {
             vector: state_embedding,
             metadata: Some({
                 let mut meta = HashMap::new();
-                meta.insert("type".to_string(), serde_json::json!("policy"));
-                meta.insert("policy_id".to_string(), serde_json::json!(id.clone()));
-                meta.insert("state_id".to_string(), serde_json::json!(state_id));
-                meta.insert("action".to_string(), serde_json::json!(action));
-                meta.insert("reward".to_string(), serde_json::json!(reward));
-                meta.insert("q_value".to_string(), serde_json::json!(q_value));
+                meta.insert("type".to_string(), sonic_rs::json!("policy"));
+                meta.insert("policy_id".to_string(), sonic_rs::json!(id.clone()));
+                meta.insert("state_id".to_string(), sonic_rs::json!(state_id));
+                meta.insert("action".to_string(), sonic_rs::json!(action));
+                meta.insert("reward".to_string(), sonic_rs::json!(reward));
+                meta.insert("q_value".to_string(), sonic_rs::json!(q_value));
                 meta
             }),
         })?;
@@ -881,7 +882,7 @@ impl<'a> PolicyMemoryStore<'a> {
             k,
             filter: Some({
                 let mut filter = HashMap::new();
-                filter.insert("type".to_string(), serde_json::json!("policy"));
+                filter.insert("type".to_string(), sonic_rs::json!("policy"));
                 filter
             }),
             ef_search: None,
@@ -1005,17 +1006,17 @@ impl<'a> SessionStateIndex<'a> {
             vector: embedding,
             metadata: Some({
                 let mut meta = HashMap::new();
-                meta.insert("type".to_string(), serde_json::json!("session_turn"));
+                meta.insert("type".to_string(), sonic_rs::json!("session_turn"));
                 meta.insert(
                     "session_id".to_string(),
-                    serde_json::json!(self.session_id.clone()),
+                    sonic_rs::json!(self.session_id.clone()),
                 );
-                meta.insert("turn_id".to_string(), serde_json::json!(id.clone()));
-                meta.insert("turn_number".to_string(), serde_json::json!(turn_number));
-                meta.insert("role".to_string(), serde_json::json!(role));
-                meta.insert("content".to_string(), serde_json::json!(content));
-                meta.insert("timestamp".to_string(), serde_json::json!(timestamp));
-                meta.insert("expires_at".to_string(), serde_json::json!(expires_at));
+                meta.insert("turn_id".to_string(), sonic_rs::json!(id.clone()));
+                meta.insert("turn_number".to_string(), sonic_rs::json!(turn_number));
+                meta.insert("role".to_string(), sonic_rs::json!(role));
+                meta.insert("content".to_string(), sonic_rs::json!(content));
+                meta.insert("timestamp".to_string(), sonic_rs::json!(timestamp));
+                meta.insert("expires_at".to_string(), sonic_rs::json!(expires_at));
                 meta
             }),
         })?;
@@ -1033,10 +1034,10 @@ impl<'a> SessionStateIndex<'a> {
             k: k * 2, // Get extra to filter expired
             filter: Some({
                 let mut filter = HashMap::new();
-                filter.insert("type".to_string(), serde_json::json!("session_turn"));
+                filter.insert("type".to_string(), sonic_rs::json!("session_turn"));
                 filter.insert(
                     "session_id".to_string(),
-                    serde_json::json!(self.session_id.clone()),
+                    sonic_rs::json!(self.session_id.clone()),
                 );
                 filter
             }),
@@ -1149,7 +1150,7 @@ pub struct WitnessEntry {
     /// Timestamp
     pub timestamp: i64,
     /// Additional metadata
-    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    pub metadata: Option<HashMap<String, sonic_rs::Value>>,
 }
 
 impl<'a> WitnessLog<'a> {
@@ -1205,15 +1206,15 @@ impl<'a> WitnessLog<'a> {
             vector: embedding.clone(),
             metadata: Some({
                 let mut meta = HashMap::new();
-                meta.insert("type".to_string(), serde_json::json!("witness"));
-                meta.insert("witness_id".to_string(), serde_json::json!(id.clone()));
-                meta.insert("agent_id".to_string(), serde_json::json!(agent_id));
-                meta.insert("action_type".to_string(), serde_json::json!(action_type));
-                meta.insert("details".to_string(), serde_json::json!(details));
-                meta.insert("timestamp".to_string(), serde_json::json!(timestamp));
-                meta.insert("hash".to_string(), serde_json::json!(hash.clone()));
+                meta.insert("type".to_string(), sonic_rs::json!("witness"));
+                meta.insert("witness_id".to_string(), sonic_rs::json!(id.clone()));
+                meta.insert("agent_id".to_string(), sonic_rs::json!(agent_id));
+                meta.insert("action_type".to_string(), sonic_rs::json!(action_type));
+                meta.insert("details".to_string(), sonic_rs::json!(details));
+                meta.insert("timestamp".to_string(), sonic_rs::json!(timestamp));
+                meta.insert("hash".to_string(), sonic_rs::json!(hash.clone()));
                 if let Some(ref prev) = prev_hash {
-                    meta.insert("prev_hash".to_string(), serde_json::json!(prev));
+                    meta.insert("prev_hash".to_string(), sonic_rs::json!(prev));
                 }
                 meta
             }),
@@ -1234,7 +1235,7 @@ impl<'a> WitnessLog<'a> {
             k,
             filter: Some({
                 let mut filter = HashMap::new();
-                filter.insert("type".to_string(), serde_json::json!("witness"));
+                filter.insert("type".to_string(), sonic_rs::json!("witness"));
                 filter
             }),
             ef_search: None,
