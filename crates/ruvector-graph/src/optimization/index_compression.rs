@@ -15,7 +15,7 @@ pub struct CompressedIndex {
     /// Bitmap indexes for labels
     label_indexes: Arc<RwLock<HashMap<String, RoaringBitmap>>>,
     /// Delta-encoded sorted ID lists
-    sorted_indexes: Arc<RwLock<HashMap<String, DeltaEncodedList>>>,
+    _sorted_indexes: Arc<RwLock<HashMap<String, DeltaEncodedList>>>,
     /// Dictionary encoding for string properties
     string_dict: Arc<RwLock<StringDictionary>>,
 }
@@ -24,7 +24,7 @@ impl CompressedIndex {
     pub fn new() -> Self {
         Self {
             label_indexes: Arc::new(RwLock::new(HashMap::new())),
-            sorted_indexes: Arc::new(RwLock::new(HashMap::new())),
+            _sorted_indexes: Arc::new(RwLock::new(HashMap::new())),
             string_dict: Arc::new(RwLock::new(StringDictionary::new())),
         }
     }
@@ -346,7 +346,7 @@ impl StringDictionary {
         self.id_to_string.get(&id).cloned()
     }
 
-    fn len(&self) -> usize {
+    fn _len(&self) -> usize {
         self.string_to_id.len()
     }
 }

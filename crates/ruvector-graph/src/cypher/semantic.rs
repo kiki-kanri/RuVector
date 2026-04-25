@@ -7,7 +7,7 @@
 //! - Pattern validity
 
 use super::ast::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -130,7 +130,7 @@ impl SemanticAnalyzer {
         }
     }
 
-    fn current_scope(&self) -> &Scope {
+    fn _current_scope(&self) -> &Scope {
         self.scope_stack.last().unwrap()
     }
 
@@ -138,11 +138,11 @@ impl SemanticAnalyzer {
         self.scope_stack.last_mut().unwrap()
     }
 
-    fn push_scope(&mut self) {
+    fn _push_scope(&mut self) {
         self.scope_stack.push(Scope::new());
     }
 
-    fn pop_scope(&mut self) {
+    fn _pop_scope(&mut self) {
         self.scope_stack.pop();
     }
 

@@ -278,7 +278,7 @@ impl QueryOptimizer {
 
     /// Apply predicate pushdown optimization
     /// Move WHERE clauses as close to data access as possible
-    fn apply_predicate_pushdown(&self, query: Query) -> Option<Query> {
+    fn apply_predicate_pushdown(&self, _query: Query) -> Option<Query> {
         // In a real implementation, this would analyze the query graph
         // and push predicates down to the earliest possible point
         // For now, we'll do a simple transformation
@@ -438,11 +438,11 @@ impl QueryOptimizer {
                 let mut cost = 100.0;
 
                 // Labels reduce cost (more selective)
-                cost /= (1.0 + node.labels.len() as f64 * 0.5);
+                cost /= 1.0 + node.labels.len() as f64 * 0.5;
 
                 // Properties reduce cost
                 if let Some(props) = &node.properties {
-                    cost /= (1.0 + props.len() as f64 * 0.3);
+                    cost /= 1.0 + props.len() as f64 * 0.3;
                 }
 
                 cost
@@ -472,38 +472,38 @@ impl QueryOptimizer {
     }
 
     /// Get variables used in an expression
-    fn get_variables_in_expression(&self, expr: &Expression) -> HashSet<String> {
+    fn _get_variables_in_expression(&self, expr: &Expression) -> HashSet<String> {
         let mut vars = HashSet::new();
-        self.collect_variables(expr, &mut vars);
+        self._collect_variables(expr, &mut vars);
         vars
     }
 
-    fn collect_variables(&self, expr: &Expression, vars: &mut HashSet<String>) {
+    fn _collect_variables(&self, expr: &Expression, vars: &mut HashSet<String>) {
         match expr {
             Expression::Variable(name) => {
                 vars.insert(name.clone());
             }
             Expression::Property { object, .. } => {
-                self.collect_variables(object, vars);
+                self._collect_variables(object, vars);
             }
             Expression::BinaryOp { left, right, .. } => {
-                self.collect_variables(left, vars);
-                self.collect_variables(right, vars);
+                self._collect_variables(left, vars);
+                self._collect_variables(right, vars);
             }
             Expression::UnaryOp { operand, .. } => {
-                self.collect_variables(operand, vars);
+                self._collect_variables(operand, vars);
             }
             Expression::FunctionCall { args, .. } => {
                 for arg in args {
-                    self.collect_variables(arg, vars);
+                    self._collect_variables(arg, vars);
                 }
             }
             Expression::Aggregation { expression, .. } => {
-                self.collect_variables(expression, vars);
+                self._collect_variables(expression, vars);
             }
             Expression::List(items) => {
                 for item in items {
-                    self.collect_variables(item, vars);
+                    self._collect_variables(item, vars);
                 }
             }
             Expression::Case {
@@ -512,14 +512,14 @@ impl QueryOptimizer {
                 default,
             } => {
                 if let Some(expr) = expression {
-                    self.collect_variables(expr, vars);
+                    self._collect_variables(expr, vars);
                 }
                 for (cond, result) in alternatives {
-                    self.collect_variables(cond, vars);
-                    self.collect_variables(result, vars);
+                    self._collect_variables(cond, vars);
+                    self._collect_variables(result, vars);
                 }
                 if let Some(default_expr) = default {
-                    self.collect_variables(default_expr, vars);
+                    self._collect_variables(default_expr, vars);
                 }
             }
             _ => {}

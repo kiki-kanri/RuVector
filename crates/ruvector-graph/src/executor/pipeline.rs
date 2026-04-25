@@ -128,7 +128,7 @@ impl Default for ExecutionContext {
 
 /// Pipeline executor using Volcano iterator model
 pub struct Pipeline {
-    plan: PhysicalPlan,
+    _plan: PhysicalPlan,
     operators: Vec<Box<dyn Operator>>,
     current_operator: usize,
     context: ExecutionContext,
@@ -141,7 +141,7 @@ impl Pipeline {
         let operators = std::mem::take(&mut plan.operators);
         Self {
             operators,
-            plan,
+            _plan: plan,
             current_operator: 0,
             context: ExecutionContext::new(),
             finished: false,
@@ -153,7 +153,7 @@ impl Pipeline {
         let operators = std::mem::take(&mut plan.operators);
         Self {
             operators,
-            plan,
+            _plan: plan,
             current_operator: 0,
             context,
             finished: false,

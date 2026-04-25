@@ -10,7 +10,7 @@ use std::collections::HashMap;
 /// Extended Cypher parser with vector support
 pub struct VectorCypherParser {
     /// Parse options
-    options: ParserOptions,
+    _options: ParserOptions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,7 +33,7 @@ impl Default for ParserOptions {
 impl VectorCypherParser {
     /// Create a new vector-aware Cypher parser
     pub fn new(options: ParserOptions) -> Self {
-        Self { options }
+        Self { _options: options }
     }
 
     /// Parse a Cypher query with vector extensions

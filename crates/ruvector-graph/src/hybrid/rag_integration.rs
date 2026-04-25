@@ -2,9 +2,9 @@
 //!
 //! Provides graph-based context retrieval and multi-hop reasoning for LLMs.
 
-use crate::error::{GraphError, Result};
+use crate::error::Result;
 use crate::hybrid::semantic_search::{SemanticPath, SemanticSearch};
-use crate::types::{EdgeId, NodeId, Properties};
+use crate::types::NodeId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

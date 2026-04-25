@@ -4,10 +4,9 @@
 
 use crate::executor::operators::{AggregateFunction, JoinType, Operator, ScanMode};
 use crate::executor::stats::Statistics;
-use crate::executor::{ExecutionError, Result};
+use crate::executor::Result;
 use ordered_float::OrderedFloat;
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 

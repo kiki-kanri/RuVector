@@ -4,20 +4,19 @@
 //! cache misses and maximize memory bandwidth utilization.
 
 use parking_lot::RwLock;
-use std::alloc::{alloc, dealloc, Layout};
 use std::sync::Arc;
 
 /// Cache line size (64 bytes on x86-64)
-const CACHE_LINE_SIZE: usize = 64;
+// const CACHE_LINE_SIZE: usize = 64;
 
 /// L1 cache size estimate (32KB typical)
-const L1_CACHE_SIZE: usize = 32 * 1024;
+// const L1_CACHE_SIZE: usize = 32 * 1024;
 
 /// L2 cache size estimate (256KB typical)
-const L2_CACHE_SIZE: usize = 256 * 1024;
+// const L2_CACHE_SIZE: usize = 256 * 1024;
 
 /// L3 cache size estimate (8MB typical)
-const L3_CACHE_SIZE: usize = 8 * 1024 * 1024;
+// const L3_CACHE_SIZE: usize = 8 * 1024 * 1024;
 
 /// Cache hierarchy manager for graph data
 pub struct CacheHierarchy {
@@ -87,7 +86,7 @@ impl CacheHierarchy {
     }
 
     /// Evict least recently used hot data to cold storage
-    fn evict_cold(&self) {
+    fn _evict_cold(&self) {
         let tracker = self.access_tracker.read();
         let lru_nodes = tracker.get_lru_nodes_by_frequency(10);
         drop(tracker);
@@ -208,14 +207,14 @@ struct CacheLineEntry {
 struct ColdStorage {
     /// Compressed data storage
     entries: dashmap::DashMap<u64, Vec<u8>>,
-    capacity: usize,
+    _capacity: usize,
 }
 
 impl ColdStorage {
     fn new(capacity: usize) -> Self {
         Self {
             entries: dashmap::DashMap::new(),
-            capacity,
+            _capacity: capacity,
         }
     }
 
@@ -282,7 +281,7 @@ impl AccessTracker {
             .unwrap_or(false)
     }
 
-    fn get_lru_nodes(&self, count: usize) -> Vec<u64> {
+    fn _get_lru_nodes(&self, count: usize) -> Vec<u64> {
         let mut nodes: Vec<_> = self
             .last_access
             .iter()

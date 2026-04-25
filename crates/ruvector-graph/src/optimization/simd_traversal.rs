@@ -9,8 +9,8 @@ use std::collections::{HashSet, VecDeque};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-#[cfg(target_arch = "x86_64")]
-use std::arch::x86_64::*;
+// #[cfg(target_arch = "x86_64")]
+// use std::arch::x86_64::*;
 
 /// SIMD-optimized graph traversal engine
 pub struct SimdTraversal {
@@ -36,7 +36,7 @@ impl SimdTraversal {
     }
 
     /// Perform batched BFS with SIMD-optimized neighbor processing
-    pub fn simd_bfs<F>(&self, start_nodes: &[u64], mut visit_fn: F) -> Vec<u64>
+    pub fn simd_bfs<F>(&self, start_nodes: &[u64], visit_fn: F) -> Vec<u64>
     where
         F: FnMut(u64) -> Vec<u64> + Send + Sync,
     {
@@ -194,7 +194,7 @@ impl SimdTraversal {
     }
 
     /// Parallel DFS with work-stealing for load balancing
-    pub fn parallel_dfs<F>(&self, start_node: u64, mut visit_fn: F) -> Vec<u64>
+    pub fn parallel_dfs<F>(&self, start_node: u64, visit_fn: F) -> Vec<u64>
     where
         F: FnMut(u64) -> Vec<u64> + Send + Sync,
     {

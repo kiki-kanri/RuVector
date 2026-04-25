@@ -8,7 +8,7 @@ use nom::{
     character::complete::{char, multispace0, multispace1, one_of},
     combinator::{map, opt, recognize},
     multi::many0,
-    sequence::{delimited, pair, preceded, tuple},
+    sequence::{delimited, pair, tuple},
     IResult,
 };
 use serde::{Deserialize, Serialize};

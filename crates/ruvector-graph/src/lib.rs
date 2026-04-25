@@ -37,11 +37,11 @@ pub use transaction::{IsolationLevel, Transaction, TransactionManager};
 pub use types::{EdgeId, Label, NodeId, Properties, PropertyValue, RelationType};
 
 // Re-export hybrid query types when available
-#[cfg(not(feature = "minimal"))]
-pub use hybrid::{
-    EmbeddingConfig, GnnConfig, GraphNeuralEngine, HybridIndex, RagConfig, RagEngine,
-    SemanticSearch, VectorCypherParser,
-};
+// #[cfg(not(feature = "minimal"))]
+// pub use hybrid::{
+//     EmbeddingConfig, GnnConfig, GraphNeuralEngine, HybridIndex, RagConfig, RagEngine,
+//     SemanticSearch, VectorCypherParser,
+// };
 
 // Re-export distributed types when feature is enabled
 #[cfg(feature = "distributed")]

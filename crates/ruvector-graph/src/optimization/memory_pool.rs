@@ -296,7 +296,7 @@ pub struct ObjectPool<T> {
     /// Factory function
     factory: Arc<dyn Fn() -> T + Send + Sync>,
     /// Maximum pool size
-    max_size: usize,
+    _max_size: usize,
 }
 
 impl<T> ObjectPool<T> {
@@ -307,7 +307,7 @@ impl<T> ObjectPool<T> {
         Self {
             available: Arc::new(crossbeam::queue::SegQueue::new()),
             factory: Arc::new(factory),
-            max_size,
+            _max_size: max_size,
         }
     }
 

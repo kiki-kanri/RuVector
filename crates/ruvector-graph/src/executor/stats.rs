@@ -58,7 +58,7 @@ impl Statistics {
         &self,
         left_table: &str,
         right_table: &str,
-        join_column: &str,
+        _join_column: &str,
     ) -> f64 {
         let left_stats = self.get_table_stats(left_table);
         let right_stats = self.get_table_stats(right_table);

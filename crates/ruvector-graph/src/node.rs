@@ -3,7 +3,6 @@
 use crate::types::{Label, NodeId, Properties, PropertyValue};
 use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]

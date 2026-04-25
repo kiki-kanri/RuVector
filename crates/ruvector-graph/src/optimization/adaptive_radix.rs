@@ -3,9 +3,6 @@
 //! ART provides space-efficient indexing with excellent cache performance
 //! through adaptive node sizes and path compression.
 
-use std::cmp::Ordering;
-use std::mem;
-
 /// Adaptive Radix Tree for property indexing
 pub struct AdaptiveRadixTree<V: Clone> {
     root: Option<Box<ArtNode<V>>>,

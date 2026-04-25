@@ -2,8 +2,8 @@
 //!
 //! Provides GNN-based predictions: node classification, link prediction, graph embeddings.
 
-use crate::error::{GraphError, Result};
-use crate::types::{EdgeId, NodeId};
+use crate::error::Result;
+use crate::types::NodeId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -177,7 +177,7 @@ impl GraphNeuralEngine {
     }
 
     /// Apply attention mechanism for neighbor aggregation
-    fn aggregate_with_attention(
+    fn _aggregate_with_attention(
         &self,
         _node_embedding: &[f32],
         _neighbor_embeddings: &[Vec<f32>],
@@ -188,7 +188,7 @@ impl GraphNeuralEngine {
     }
 
     /// Apply activation function with numerical stability
-    fn activate(&self, x: f32) -> f32 {
+    fn _activate(&self, x: f32) -> f32 {
         match self.config.activation {
             ActivationType::ReLU => x.max(0.0),
             ActivationType::Sigmoid => {

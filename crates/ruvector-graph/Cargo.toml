@@ -77,10 +77,10 @@ zstd = { version = "0.13.3", optional = true }
 lz4 = { version = "1.28.1", optional = true }
 
 # Networking (for federation)
-tonic = { version = "0.12", features = ["transport"], optional = true }
-prost = { version = "0.13", optional = true }
-tower = { version = "0.4", optional = true }
-hyper = { version = "1.4", optional = true }
+tonic = { version = "0.14.5", features = ["transport"], optional = true }
+prost = { version = "0.14.3", optional = true }
+tower = { version = "0.5.3", optional = true }
+hyper = { version = "1.9.0", optional = true }
 
 # Hashing for sharding
 blake3 = { version = "1.8.5", optional = true }

@@ -6,13 +6,12 @@ use crate::error::{GraphError, Result};
 use crate::types::{EdgeId, NodeId, Properties, PropertyValue};
 use dashmap::DashMap;
 use parking_lot::RwLock;
-use ruvector_core::index::flat::FlatIndex;
 #[cfg(feature = "hnsw_rs")]
 use ruvector_core::index::hnsw::HnswIndex;
 use ruvector_core::index::VectorIndex;
 #[cfg(feature = "hnsw_rs")]
 use ruvector_core::types::HnswConfig;
-use ruvector_core::types::{DistanceMetric, SearchResult};
+use ruvector_core::types::DistanceMetric;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 

@@ -2,8 +2,7 @@
 //!
 //! Implements data parallelism for graph queries
 
-use crate::executor::operators::Operator;
-use crate::executor::pipeline::{ExecutionContext, RowBatch};
+use crate::executor::pipeline::RowBatch;
 use crate::executor::plan::PhysicalPlan;
 use crate::executor::{ExecutionError, Result};
 use rayon::prelude::*;
@@ -98,8 +97,8 @@ impl ParallelExecutor {
     }
 
     /// Execute plan sequentially (fallback)
-    fn execute_sequential(&self, plan: &PhysicalPlan) -> Result<Vec<RowBatch>> {
-        let mut results = Vec::new();
+    fn execute_sequential(&self, _plan: &PhysicalPlan) -> Result<Vec<RowBatch>> {
+        let results = Vec::new();
         // Simplified sequential execution
         Ok(results)
     }
@@ -134,9 +133,9 @@ impl ParallelExecutor {
     /// Execute a partition of the data
     fn execute_partition(
         &self,
-        plan: &PhysicalPlan,
-        partition_id: usize,
-        num_partitions: usize,
+        _plan: &PhysicalPlan,
+        _partition_id: usize,
+        _num_partitions: usize,
     ) -> Result<Option<RowBatch>> {
         // Simplified partition execution
         Ok(None)
@@ -144,13 +143,13 @@ impl ParallelExecutor {
 
     /// Staged parallel execution (for complex queries with pipeline breakers)
     fn execute_parallel_staged(&self, plan: &PhysicalPlan) -> Result<Vec<RowBatch>> {
-        let mut intermediate_results = Vec::new();
+        // let mut intermediate_results = Vec::new();
 
         // Execute each stage between pipeline breakers
         let mut start = 0;
         for &breaker in &plan.pipeline_breakers {
-            let stage_results = self.execute_stage(plan, start, breaker)?;
-            intermediate_results = stage_results;
+            let _stage_results = self.execute_stage(plan, start, breaker)?;
+            // intermediate_results = stage_results;
             start = breaker + 1;
         }
 
@@ -162,9 +161,9 @@ impl ParallelExecutor {
     /// Execute a stage of operators
     fn execute_stage(
         &self,
-        plan: &PhysicalPlan,
-        start: usize,
-        end: usize,
+        _plan: &PhysicalPlan,
+        _start: usize,
+        _end: usize,
     ) -> Result<Vec<RowBatch>> {
         // Simplified stage execution
         Ok(Vec::new())
@@ -271,13 +270,13 @@ pub enum ParallelJoinStrategy {
 /// Parallel join executor
 pub struct ParallelJoin {
     strategy: ParallelJoinStrategy,
-    executor: Arc<ParallelExecutor>,
+    _executor: Arc<ParallelExecutor>,
 }
 
 impl ParallelJoin {
     /// Create new parallel join
     pub fn new(strategy: ParallelJoinStrategy, executor: Arc<ParallelExecutor>) -> Self {
-        Self { strategy, executor }
+        Self { strategy, _executor: executor }
     }
 
     /// Execute parallel join
@@ -291,7 +290,7 @@ impl ParallelJoin {
 
     fn broadcast_join(&self, left: Vec<RowBatch>, right: Vec<RowBatch>) -> Result<Vec<RowBatch>> {
         // Broadcast smaller side to all workers
-        let (build_side, probe_side) = if left.len() < right.len() {
+        let (_build_side, _probe_side) = if left.len() < right.len() {
             (left, right)
         } else {
             (right, left)
@@ -303,15 +302,15 @@ impl ParallelJoin {
 
     fn partitioned_hash_join(
         &self,
-        left: Vec<RowBatch>,
-        right: Vec<RowBatch>,
+        _left: Vec<RowBatch>,
+        _right: Vec<RowBatch>,
     ) -> Result<Vec<RowBatch>> {
         // Partition both sides by join key
         // Each partition is processed independently
         Ok(Vec::new())
     }
 
-    fn sort_merge_join(&self, left: Vec<RowBatch>, right: Vec<RowBatch>) -> Result<Vec<RowBatch>> {
+    fn sort_merge_join(&self, _left: Vec<RowBatch>, _right: Vec<RowBatch>) -> Result<Vec<RowBatch>> {
         // Sort both sides in parallel, then merge
         Ok(Vec::new())
     }

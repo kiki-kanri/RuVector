@@ -4,7 +4,7 @@
 
 use crate::executor::pipeline::RowBatch;
 use crate::executor::plan::{Predicate, Value};
-use crate::executor::{ExecutionError, Result};
+use crate::executor::Result;
 use std::collections::HashMap;
 
 #[cfg(target_arch = "x86_64")]
@@ -37,17 +37,17 @@ pub enum ScanMode {
 
 /// Node scan operator
 pub struct NodeScan {
-    mode: ScanMode,
-    filter: Option<Predicate>,
-    position: usize,
+    _mode: ScanMode,
+    _filter: Option<Predicate>,
+    _position: usize,
 }
 
 impl NodeScan {
     pub fn new(mode: ScanMode, filter: Option<Predicate>) -> Self {
         Self {
-            mode,
-            filter,
-            position: 0,
+            _mode: mode,
+            _filter: filter,
+            _position: 0,
         }
     }
 }
@@ -66,17 +66,17 @@ impl Operator for NodeScan {
 
 /// Edge scan operator
 pub struct EdgeScan {
-    mode: ScanMode,
-    filter: Option<Predicate>,
-    position: usize,
+    _mode: ScanMode,
+    _filter: Option<Predicate>,
+    _position: usize,
 }
 
 impl EdgeScan {
     pub fn new(mode: ScanMode, filter: Option<Predicate>) -> Self {
         Self {
-            mode,
-            filter,
-            position: 0,
+            _mode: mode,
+            _filter: filter,
+            _position: 0,
         }
     }
 }
@@ -93,13 +93,13 @@ impl Operator for EdgeScan {
 
 /// Hyperedge scan operator
 pub struct HyperedgeScan {
-    mode: ScanMode,
-    filter: Option<Predicate>,
+    _mode: ScanMode,
+    _filter: Option<Predicate>,
 }
 
 impl HyperedgeScan {
     pub fn new(mode: ScanMode, filter: Option<Predicate>) -> Self {
-        Self { mode, filter }
+        Self { _mode: mode, _filter: filter }
     }
 }
 
@@ -184,17 +184,17 @@ impl Filter {
 
     /// SIMD-optimized batch filtering for numeric predicates
     #[cfg(target_arch = "x86_64")]
-    fn filter_batch_simd(&self, values: &[f32], threshold: f32) -> Vec<bool> {
+    fn _filter_batch_simd(&self, values: &[f32], threshold: f32) -> Vec<bool> {
         if is_x86_feature_detected!("avx2") {
-            unsafe { self.filter_batch_avx2(values, threshold) }
+            unsafe { self._filter_batch_avx2(values, threshold) }
         } else {
-            self.filter_batch_scalar(values, threshold)
+            self._filter_batch_scalar(values, threshold)
         }
     }
 
     #[cfg(target_arch = "x86_64")]
     #[target_feature(enable = "avx2")]
-    unsafe fn filter_batch_avx2(&self, values: &[f32], threshold: f32) -> Vec<bool> {
+    unsafe fn _filter_batch_avx2(&self, values: &[f32], threshold: f32) -> Vec<bool> {
         let mut result = vec![false; values.len()];
         let threshold_vec = _mm256_set1_ps(threshold);
 
@@ -223,7 +223,7 @@ impl Filter {
         self.filter_batch_scalar(values, threshold)
     }
 
-    fn filter_batch_scalar(&self, values: &[f32], threshold: f32) -> Vec<bool> {
+    fn _filter_batch_scalar(&self, values: &[f32], threshold: f32) -> Vec<bool> {
         values.iter().map(|&v| v > threshold).collect()
     }
 }
@@ -262,46 +262,46 @@ pub enum JoinType {
 
 /// Join operator with hash join implementation
 pub struct Join {
-    join_type: JoinType,
-    on: Vec<(String, String)>,
-    hash_table: HashMap<Vec<Value>, Vec<HashMap<String, Value>>>,
-    built: bool,
+    _join_type: JoinType,
+    _on: Vec<(String, String)>,
+    _hash_table: HashMap<Vec<Value>, Vec<HashMap<String, Value>>>,
+    _built: bool,
 }
 
 impl Join {
     pub fn new(join_type: JoinType, on: Vec<(String, String)>) -> Self {
         Self {
-            join_type,
-            on,
-            hash_table: HashMap::new(),
-            built: false,
+            _join_type: join_type,
+            _on: on,
+            _hash_table: HashMap::new(),
+            _built: false,
         }
     }
 
-    fn build_hash_table(&mut self, build_side: RowBatch) {
+    fn _build_hash_table(&mut self, build_side: RowBatch) {
         for row in build_side.rows {
             let key: Vec<Value> = self
-                .on
+                ._on
                 .iter()
                 .filter_map(|(_, right_col)| row.get(right_col).cloned())
                 .collect();
 
-            self.hash_table
+            self._hash_table
                 .entry(key)
                 .or_insert_with(Vec::new)
                 .push(row);
         }
-        self.built = true;
+        self._built = true;
     }
 
-    fn probe(&self, probe_row: &HashMap<String, Value>) -> Vec<HashMap<String, Value>> {
+    fn _probe(&self, probe_row: &HashMap<String, Value>) -> Vec<HashMap<String, Value>> {
         let key: Vec<Value> = self
-            .on
+            ._on
             .iter()
             .filter_map(|(left_col, _)| probe_row.get(left_col).cloned())
             .collect();
 
-        if let Some(matches) = self.hash_table.get(&key) {
+        if let Some(matches) = self._hash_table.get(&key) {
             matches
                 .iter()
                 .map(|right_row| {
@@ -317,7 +317,7 @@ impl Join {
 }
 
 impl Operator for Join {
-    fn execute(&mut self, input: Option<RowBatch>) -> Result<Option<RowBatch>> {
+    fn execute(&mut self, _input: Option<RowBatch>) -> Result<Option<RowBatch>> {
         // Simplified: assumes build side comes first, then probe side
         Ok(None)
     }
@@ -343,23 +343,23 @@ pub enum AggregateFunction {
 
 /// Aggregate operator
 pub struct Aggregate {
-    group_by: Vec<String>,
-    aggregates: Vec<(AggregateFunction, String)>,
-    state: HashMap<Vec<Value>, Vec<f64>>,
+    _group_by: Vec<String>,
+    _aggregates: Vec<(AggregateFunction, String)>,
+    _state: HashMap<Vec<Value>, Vec<f64>>,
 }
 
 impl Aggregate {
     pub fn new(group_by: Vec<String>, aggregates: Vec<(AggregateFunction, String)>) -> Self {
         Self {
-            group_by,
-            aggregates,
-            state: HashMap::new(),
+            _group_by: group_by,
+            _aggregates: aggregates,
+            _state: HashMap::new(),
         }
     }
 }
 
 impl Operator for Aggregate {
-    fn execute(&mut self, input: Option<RowBatch>) -> Result<Option<RowBatch>> {
+    fn execute(&mut self, _input: Option<RowBatch>) -> Result<Option<RowBatch>> {
         Ok(None)
     }
 
@@ -413,21 +413,21 @@ impl Operator for Project {
 
 /// Sort operator with external sort for large datasets
 pub struct Sort {
-    order_by: Vec<(String, crate::executor::plan::SortOrder)>,
-    buffer: Vec<HashMap<String, Value>>,
+    _order_by: Vec<(String, crate::executor::plan::SortOrder)>,
+    _buffer: Vec<HashMap<String, Value>>,
 }
 
 impl Sort {
     pub fn new(order_by: Vec<(String, crate::executor::plan::SortOrder)>) -> Self {
         Self {
-            order_by,
-            buffer: Vec::new(),
+            _order_by: order_by,
+            _buffer: Vec::new(),
         }
     }
 }
 
 impl Operator for Sort {
-    fn execute(&mut self, input: Option<RowBatch>) -> Result<Option<RowBatch>> {
+    fn execute(&mut self, _input: Option<RowBatch>) -> Result<Option<RowBatch>> {
         Ok(None)
     }
 

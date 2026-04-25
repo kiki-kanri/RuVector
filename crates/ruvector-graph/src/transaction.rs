@@ -13,7 +13,6 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use uuid::Uuid;
 
 /// Transaction isolation level
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -67,10 +66,10 @@ enum TxnState {
 
 /// Transaction metadata
 struct TxnMetadata {
-    id: TxnId,
+    _id: TxnId,
     state: TxnState,
-    isolation_level: IsolationLevel,
-    start_time: Timestamp,
+    _isolation_level: IsolationLevel,
+    _start_time: Timestamp,
     commit_time: Option<Timestamp>,
 }
 
@@ -109,10 +108,10 @@ impl TransactionManager {
         let start_time = now();
 
         let metadata = TxnMetadata {
-            id: txn_id,
+            _id: txn_id,
             state: TxnState::Active,
-            isolation_level,
-            start_time,
+            _isolation_level: isolation_level,
+            _start_time: start_time,
             commit_time: None,
         };
 
@@ -269,7 +268,7 @@ struct WriteSet {
     hyperedges: HashMap<HyperedgeId, Hyperedge>,
     deleted_nodes: HashSet<NodeId>,
     deleted_edges: HashSet<EdgeId>,
-    deleted_hyperedges: HashSet<HyperedgeId>,
+    _deleted_hyperedges: HashSet<HyperedgeId>,
 }
 
 impl WriteSet {

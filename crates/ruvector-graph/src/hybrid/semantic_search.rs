@@ -2,11 +2,10 @@
 //!
 //! Combines vector similarity with graph traversal for semantic queries.
 
-use crate::error::{GraphError, Result};
+use crate::error::Result;
 use crate::hybrid::vector_index::HybridIndex;
 use crate::types::{EdgeId, NodeId};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
 
 /// Configuration for semantic search
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -161,7 +160,7 @@ impl SemanticSearch {
     /// Expand query using similar terms
     pub fn expand_query(&self, query: &[f32], expansion_factor: usize) -> Result<Vec<Vec<f32>>> {
         // Find similar embeddings to expand the query
-        let similar = self.index.search_similar_nodes(query, expansion_factor)?;
+        let _similar = self.index.search_similar_nodes(query, expansion_factor)?;
 
         // In a real implementation, we would retrieve the actual embeddings
         // For now, return the original query
