@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use ruvector_core::types::{DistanceMetric, SearchQuery};
-use ruvector_core::{DbOptions, VectorDB, VectorEntry};
+use ruvector_core::types::{DbOptions, DistanceMetric, SearchQuery};
+use ruvector_core::{VectorDB, VectorEntry};
 use tempfile::tempdir;
 
 fn bench_batch_insert(c: &mut Criterion) {

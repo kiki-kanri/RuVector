@@ -19,7 +19,7 @@ use once_cell::sync::Lazy;
 #[cfg(feature = "storage")]
 use parking_lot::Mutex;
 #[cfg(feature = "storage")]
-use redb::{Database, ReadableTable, TableDefinition};
+use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 #[cfg(feature = "storage")]
 use std::collections::HashMap;
 #[cfg(feature = "storage")]

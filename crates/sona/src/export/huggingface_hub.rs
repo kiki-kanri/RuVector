@@ -406,9 +406,9 @@ pub struct AdapterConfigJson {
 
 /// Simple UUID v4 generator
 fn uuid_v4() -> String {
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
-    let bytes: [u8; 16] = rng.gen();
+    use rand::RngExt;
+    let mut rng = rand::rng();
+    let bytes: [u8; 16] = rng.random();
     format!(
         "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
         bytes[0], bytes[1], bytes[2], bytes[3],

@@ -360,11 +360,11 @@ mod tests {
     use super::*;
 
     fn generate_random_vectors(count: usize, dimensions: usize) -> Vec<Vec<f32>> {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
+        use rand::RngExt;
+        let mut rng = rand::rng();
 
         (0..count)
-            .map(|_| (0..dimensions).map(|_| rng.gen::<f32>()).collect())
+            .map(|_| (0..dimensions).map(|_| rng.random::<f32>()).collect())
             .collect()
     }
 

@@ -485,15 +485,15 @@ fn kmeans(
     iters: usize,
     metric: DistanceMetric,
 ) -> Result<Vec<Vec<f32>>> {
-    use rand::seq::SliceRandom;
+    use rand::seq::IndexedRandom;
     if vecs.is_empty() || k == 0 {
         return Err(RuvectorError::InvalidParameter(
             "Cannot cluster empty set or k=0".into(),
         ));
     }
     let dim = vecs[0].len();
-    let mut rng = rand::thread_rng();
-    let mut cents: Vec<Vec<f32>> = vecs.choose_multiple(&mut rng, k).cloned().collect();
+    let mut rng = rand::rng();
+    let mut cents: Vec<Vec<f32>> = vecs.sample(&mut rng, k).cloned().collect();
     for _ in 0..iters {
         let (mut sums, mut counts) = (vec![vec![0.0f32; dim]; k], vec![0usize; k]);
         for v in vecs {

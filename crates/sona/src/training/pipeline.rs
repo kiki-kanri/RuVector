@@ -473,7 +473,7 @@ impl TrainingPipeline {
         // Shuffle if configured
         if self.batch_config.shuffle {
             use rand::seq::SliceRandom;
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             self.examples.shuffle(&mut rng);
         }
 
@@ -551,7 +551,7 @@ impl TrainingPipeline {
             // Reshuffle for next epoch
             if self.batch_config.shuffle && epoch + 1 < self.batch_config.epochs {
                 use rand::seq::SliceRandom;
-                let mut rng = rand::thread_rng();
+                let mut rng = rand::rng();
                 self.examples.shuffle(&mut rng);
             }
         }

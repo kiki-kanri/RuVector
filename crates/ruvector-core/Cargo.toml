@@ -31,7 +31,7 @@ tracing = { workspace = true }
 
 # Math and numerics
 ndarray = { workspace = true, features = ["serde"] }
-rand = { workspace = true }
+rand = "0.10.1"
 rand_distr = { workspace = true }
 
 # Performance
@@ -59,7 +59,7 @@ hf-hub = { version = "0.3", optional = true }
 criterion = { workspace = true }
 proptest = { workspace = true }
 mockall = { workspace = true }
-tempfile = "3.13"
+tempfile = "3.27.0"
 tracing-subscriber = { workspace = true }
 
 [[bench]]

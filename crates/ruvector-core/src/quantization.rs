@@ -548,13 +548,12 @@ fn euclidean_squared(a: &[f32], b: &[f32]) -> f32 {
 }
 
 fn kmeans_clustering(vectors: &[Vec<f32>], k: usize, iterations: usize) -> Vec<Vec<f32>> {
-    use rand::seq::SliceRandom;
-    use rand::thread_rng;
+    use rand::seq::IndexedRandom;
 
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
 
     // Initialize centroids randomly
-    let mut centroids: Vec<Vec<f32>> = vectors.choose_multiple(&mut rng, k).cloned().collect();
+    let mut centroids: Vec<Vec<f32>> = vectors.sample(&mut rng, k).cloned().collect();
 
     for _ in 0..iterations {
         // Assign vectors to nearest centroid

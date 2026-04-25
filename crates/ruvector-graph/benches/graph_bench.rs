@@ -1,7 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use ruvector_graph::types::{EdgeId, NodeId, Properties, PropertyValue};
 use ruvector_graph::{Edge, GraphDB, Node};
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 

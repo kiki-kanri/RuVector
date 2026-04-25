@@ -5,7 +5,7 @@
 
 use crate::types::VectorId;
 use ndarray::{Array1, Array2};
-use rand::Rng;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -37,7 +37,7 @@ pub struct DeepHashEmbedding {
 impl DeepHashEmbedding {
     /// Create a new deep hash embedding
     pub fn new(input_dims: usize, hidden_dims: Vec<usize>, output_bits: usize) -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut projections = Vec::new();
         let mut biases = Vec::new();
 
@@ -52,7 +52,7 @@ impl DeepHashEmbedding {
 
             let scale = (2.0 / (in_dim + out_dim) as f32).sqrt();
             let proj = Array2::from_shape_fn((out_dim, in_dim), |_| {
-                rng.gen::<f32>() * 2.0 * scale - scale
+                rng.random::<f32>() * 2.0 * scale - scale
             });
 
             let bias = Array1::zeros(out_dim);
@@ -196,11 +196,11 @@ pub struct SimpleLSH {
 impl SimpleLSH {
     /// Create a new LSH with random projections
     pub fn new(input_dims: usize, num_bits: usize) -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Random Gaussian projections
         let projections =
-            Array2::from_shape_fn((num_bits, input_dims), |_| rng.gen::<f32>() * 2.0 - 1.0);
+            Array2::from_shape_fn((num_bits, input_dims), |_| rng.random::<f32>() * 2.0 - 1.0);
 
         Self {
             projections,

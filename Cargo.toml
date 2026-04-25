@@ -209,18 +209,18 @@ repository = "https://github.com/ruvnet/ruvector"
 
 [workspace.dependencies]
 # Core functionality
-redb = "2.1"
-memmap2 = "0.9"
-hnsw_rs = "0.3"
-simsimd = "5.9"
-rayon = "1.10"
-crossbeam = "0.8"
+redb = "4.1.0"
+memmap2 = "0.9.10"
+hnsw_rs = "0.3.4"
+simsimd = "6.5.16"
+rayon = "1.12.0"
+crossbeam = "0.8.4"
 
 # Serialization
-rkyv = "0.8"
+rkyv = "0.8.16"
 bincode = { version = "2.0.0-rc.3", features = ["serde"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
 
 # Node.js bindings
 napi = { version = "2.16", default-features = false, features = ["napi9", "async", "tokio_rt"] }
@@ -234,24 +234,24 @@ web-sys = { version = "0.3", features = ["Worker", "MessagePort", "console"] }
 getrandom = { version = "0.3", features = ["wasm_js"] }
 
 # Async runtime
-tokio = { version = "1.41", features = ["rt-multi-thread", "sync", "macros"] }
+tokio = { version = "1.52.1", features = ["rt-multi-thread", "sync", "macros"] }
 futures = "0.3"
 
 # Error handling and utilities
-thiserror = "2.0"
-anyhow = "1.0"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "2.0.18"
+anyhow = "1.0.102"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 # Math and numerics
 nalgebra = { version = "0.33", default-features = false, features = ["std"] }
-ndarray = "0.16"
+ndarray = "0.17.2"
 rand = "0.8"
-rand_distr = "0.4"
+rand_distr = "0.6.0"
 
 # Time and UUID
-chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1.11", features = ["v4", "serde", "js"] }
+chrono = { version = "0.4.44", features = ["serde"] }
+uuid = { version = "1.23.1", features = ["v4", "serde", "js"] }
 
 # CLI
 clap = { version = "4.5", features = ["derive", "cargo"] }
@@ -259,9 +259,9 @@ indicatif = "0.17"
 console = "0.15"
 
 # Testing and benchmarking
-criterion = { version = "0.5", features = ["html_reports"] }
-proptest = "1.5"
-mockall = "0.13"
+criterion = { version = "0.8.2", features = ["html_reports"] }
+proptest = "1.11.0"
+mockall = "0.14.0"
 
 # Formal verification
 lean-agentic = "=0.1.0"

@@ -344,8 +344,7 @@ fn kmeans_clustering(
     iterations: usize,
     metric: DistanceMetric,
 ) -> Result<Vec<Vec<f32>>> {
-    use rand::seq::SliceRandom;
-    use rand::thread_rng;
+    use rand::seq::IndexedRandom;
 
     if vectors.is_empty() {
         return Err(RuvectorError::InvalidParameter(
@@ -374,7 +373,7 @@ fn kmeans_clustering(
         )));
     }
 
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
     let dim = vectors[0].len();
 
     // Initialize centroids using k-means++

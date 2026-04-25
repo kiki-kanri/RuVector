@@ -14,7 +14,7 @@ use once_cell::sync::Lazy;
 #[cfg(feature = "storage")]
 use parking_lot::Mutex;
 #[cfg(feature = "storage")]
-use redb::{Database, ReadableTable, ReadableTableMetadata, TableDefinition};
+use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
 #[cfg(feature = "storage")]
 use serde_json;
 #[cfg(feature = "storage")]

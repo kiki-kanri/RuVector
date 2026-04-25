@@ -29,7 +29,7 @@ use crate::error::{Result, RuvectorError};
 use crate::types::*;
 use crate::vector_db::VectorDB;
 use parking_lot::RwLock;
-use redb::{Database, TableDefinition};
+use redb::{Database, ReadableDatabase, TableDefinition};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
