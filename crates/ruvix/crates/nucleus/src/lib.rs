@@ -102,23 +102,18 @@ pub type Duration = std::time::Duration;
 pub use ruvix_queue::Duration;
 
 /// Task priority levels for scheduling.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum TaskPriority {
     /// Background tasks with no deadline.
     Background = 0,
     /// Normal priority tasks.
+    #[default]
     Normal = 1,
     /// High priority tasks.
     High = 2,
     /// Real-time tasks with strict deadlines.
     RealTime = 3,
-}
-
-impl Default for TaskPriority {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 #[cfg(test)]

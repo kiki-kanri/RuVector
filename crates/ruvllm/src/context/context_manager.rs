@@ -622,8 +622,8 @@ impl IntelligentContextManager {
 
         ContextManagerStats {
             total_preparations: preps,
-            avg_tokens: if preps > 0 { total_tokens / preps } else { 0 },
-            avg_preparation_time_us: if preps > 0 { total_time / preps } else { 0 },
+            avg_tokens: total_tokens.checked_div(preps).unwrap_or(0),
+            avg_preparation_time_us: total_time.checked_div(preps).unwrap_or(0),
             summarizations: self.stats.summarizations.load(Ordering::SeqCst),
             cache_hits: self.stats.cache_hits.load(Ordering::SeqCst),
             memory_retrievals: self.stats.memory_retrievals.load(Ordering::SeqCst),

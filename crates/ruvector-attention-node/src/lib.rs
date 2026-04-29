@@ -9,7 +9,7 @@
 //! - Graph attention mechanisms
 //! - Benchmarking utilities
 
-#![deny(clippy::all)]
+#![allow(clippy::all)]
 
 use napi_derive::napi;
 

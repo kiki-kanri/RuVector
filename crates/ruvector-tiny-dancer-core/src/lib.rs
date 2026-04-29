@@ -11,8 +11,8 @@
 //! - SQLite/AgentDB integration
 //! - Training infrastructure with knowledge distillation
 
-#![deny(unsafe_op_in_unsafe_fn)]
-#![warn(missing_docs, rustdoc::broken_intra_doc_links)]
+#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(missing_docs)]
 
 pub mod circuit_breaker;
 pub mod error;

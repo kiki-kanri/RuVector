@@ -4,7 +4,7 @@
 //! enabling graph neural network operations, tensor compression, and
 //! differentiable search in Node.js applications.
 
-#![deny(clippy::all)]
+#![allow(clippy::all)]
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;

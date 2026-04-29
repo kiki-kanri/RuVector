@@ -123,15 +123,13 @@ fn main() -> Result<()> {
             sorted.sort();
             median_latency = sorted[sorted.len() / 2] as f64;
 
-            if result.latency_ms as f64 > median_latency * args.latency_cap {
-                if args.verbose {
-                    println!(
-                        "  ⚠ Puzzle {} aborted: latency {}ms > {:.0}ms cap",
-                        puzzle.id,
-                        result.latency_ms,
-                        median_latency * args.latency_cap
-                    );
-                }
+            if result.latency_ms as f64 > median_latency * args.latency_cap && args.verbose {
+                println!(
+                    "  ⚠ Puzzle {} aborted: latency {}ms > {:.0}ms cap",
+                    puzzle.id,
+                    result.latency_ms,
+                    median_latency * args.latency_cap
+                );
                 // Still record but mark as slow
             }
         }

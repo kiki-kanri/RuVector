@@ -75,7 +75,7 @@ impl HierarchicalLorentzAttention {
         // Build adjacency list
         for node_id in dag.node_ids() {
             for &child in dag.children(node_id) {
-                adj_list.entry(node_id).or_insert_with(Vec::new).push(child);
+                adj_list.entry(node_id).or_default().push(child);
             }
         }
 
@@ -130,8 +130,8 @@ impl HierarchicalLorentzAttention {
         }
 
         // Add noise to remaining dimensions for better separation
-        for i in 2..dim {
-            embedding[i] = 0.1 * ((node_id + i) as f32).sin();
+        for (i, slot) in embedding.iter_mut().enumerate().take(dim).skip(2) {
+            *slot = 0.1 * ((node_id + i) as f32).sin();
         }
 
         embedding
@@ -266,7 +266,7 @@ mod tests {
         let attention = HierarchicalLorentzAttention::new(config);
 
         let mut dag = QueryDag::new();
-        let mut node0 = OperatorNode::new(0, OperatorType::Scan);
+        let mut node0 = OperatorNode::seq_scan(0, "table");
         node0.estimated_cost = 1.0;
         dag.add_node(node0);
 

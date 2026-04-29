@@ -256,7 +256,7 @@ mod tests {
 
         assert_close(scheduler.get_lr(), 0.1, "Initial LR");
 
-        let expected_lrs = vec![
+        let expected_lrs = [
             0.1 * 0.9,   // Step 1
             0.1 * 0.81,  // Step 2 (0.9^2)
             0.1 * 0.729, // Step 3 (0.9^3)

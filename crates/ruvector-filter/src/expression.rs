@@ -185,6 +185,8 @@ impl FilterExpression {
     }
 
     /// Create a NOT filter
+    // Public API constructor mirrors `and`/`or`; not the `std::ops::Not` trait.
+    #[allow(clippy::should_implement_trait)]
     pub fn not(filter: FilterExpression) -> Self {
         Self::Not(Box::new(filter))
     }

@@ -356,7 +356,8 @@ fn format_params(params: u64) -> String {
     const M: u64 = 1_000_000;
     const K: u64 = 1_000;
 
-    if params >= B {
+    // Switch to "B" at ≥500M so 500M reads as "0.5B" instead of "500M".
+    if params >= B / 2 {
         format!("{:.1}B", params as f64 / B as f64)
     } else if params >= M {
         format!("{:.0}M", params as f64 / M as f64)

@@ -9,6 +9,12 @@ pub struct LocalKCut {
     distance: HashMap<usize, usize>,
 }
 
+impl Default for LocalKCut {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LocalKCut {
     pub fn new() -> Self {
         Self {

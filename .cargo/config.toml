@@ -1,0 +1,14 @@
+[net]
+git-fetch-with-cli = true
+
+[registries.crates-io]
+protocol = "git"
+
+# `ruvector-filter` carries `#![recursion_limit = "4096"]` (PR #389) to
+# survive trait-resolution overflow when serde_json's `Serializer` blanket
+# impl recurses through the crate's expression types. The deeper resolution
+# in turn drives rustc's own process stack past the default 8 MB on x86_64
+# Linux, so cargo test/cargo check must run with a larger thread stack.
+# 16 MB is rustc's documented suggested value when this happens.
+[env]
+RUST_MIN_STACK = "16777216"

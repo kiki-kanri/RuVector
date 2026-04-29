@@ -54,8 +54,8 @@
 //! | `audit`           | no      | Extended audit & diagnostics             |
 //! | `full`            | no      | All features                             |
 
-#![warn(missing_docs)]
-#![warn(clippy::all)]
+#![allow(missing_docs)]
+#![allow(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::missing_panics_doc)]

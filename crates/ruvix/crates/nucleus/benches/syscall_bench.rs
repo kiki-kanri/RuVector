@@ -3,6 +3,9 @@
 //! These benchmarks measure the latency of each syscall to verify
 //! compliance with ADR-087 Section 3.2 invariant 3: bounded latency.
 
+// Bench imports/casts kept verbose for measurement fidelity; suppress clippy warnings.
+#![allow(unused_imports, clippy::unnecessary_cast)]
+
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use ruvix_nucleus::{
     CapHandle, CapRights, Duration, GraphMutation, Kernel, KernelConfig, MsgPriority, ProofTier,

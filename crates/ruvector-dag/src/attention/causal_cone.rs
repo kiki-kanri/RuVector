@@ -96,7 +96,7 @@ impl DagAttention for CausalConeAttention {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dag::{OperatorNode, OperatorType};
+    use crate::dag::OperatorNode;
 
     #[test]
     fn test_causal_cone_attention() {
@@ -121,7 +121,7 @@ mod tests {
 
         // All scores should be in [0, 1]
         for &score in scores.values() {
-            assert!(score >= 0.0 && score <= 1.0);
+            assert!((0.0..=1.0).contains(&score));
         }
     }
 }

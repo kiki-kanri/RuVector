@@ -4,10 +4,10 @@ fn main() {
 
     #[cfg(target_arch = "x86_64")]
     {
-        if std::env::var("CARGO_CFG_TARGET_FEATURE").map_or(false, |f| f.contains("avx2")) {
+        if std::env::var("CARGO_CFG_TARGET_FEATURE").is_ok_and(|f| f.contains("avx2")) {
             println!("cargo:rustc-cfg=has_avx2");
         }
-        if std::env::var("CARGO_CFG_TARGET_FEATURE").map_or(false, |f| f.contains("avx512f")) {
+        if std::env::var("CARGO_CFG_TARGET_FEATURE").is_ok_and(|f| f.contains("avx512f")) {
             println!("cargo:rustc-cfg=has_avx512");
         }
     }

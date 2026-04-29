@@ -72,10 +72,10 @@ impl DistributionStats {
         self.count += 1;
         let count = self.count as f32;
 
-        for i in 0..sample.len() {
-            let delta = sample[i] - self.mean[i];
+        for (i, &val) in sample.iter().enumerate() {
+            let delta = val - self.mean[i];
             self.mean[i] += delta / count;
-            let delta2 = sample[i] - self.mean[i];
+            let delta2 = val - self.mean[i];
             self.variance[i] += delta * delta2;
         }
     }

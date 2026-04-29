@@ -3,6 +3,9 @@
 //! Machines that feel timing, not data.
 //!
 //! Most systems measure values. This measures when things stop lining up.
+
+// Example code is illustrative; relax style lints that don't affect demonstration.
+#![allow(unused_variables, clippy::manual_clamp)]
 //!
 //! Applications:
 //! - Prosthetics that adapt reflex timing to the user's nervous system

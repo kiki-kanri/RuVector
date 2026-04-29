@@ -1,3 +1,6 @@
+// Test code uses verbose copy semantics for clarity; suppress trivial clippy warnings.
+#![allow(clippy::clone_on_copy, clippy::approx_constant)]
+
 //! Integration tests for all 12 syscalls defined in ADR-087.
 //!
 //! This module tests each syscall independently and verifies:

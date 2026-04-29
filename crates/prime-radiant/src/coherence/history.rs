@@ -362,8 +362,11 @@ impl EnergyHistory {
         let mean = self.mean();
         let std_dev = self.std_dev();
 
+        // If history is perfectly constant (std_dev≈0), any non-trivial
+        // departure from the mean is, by construction, an anomaly: a z-score
+        // is undefined here, so we just check that `energy` differs.
         if std_dev < 1e-10 {
-            return false;
+            return (energy - mean).abs() > 1e-6;
         }
 
         let z_score = ((energy - mean) / std_dev).abs();

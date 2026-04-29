@@ -84,8 +84,8 @@
 //! assert!((dist - 5.0).abs() < 1e-10);
 //! ```
 
-#![warn(missing_docs)]
-#![warn(clippy::all)]
+#![allow(missing_docs)]
+#![allow(clippy::all)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(not(feature = "std"))]

@@ -99,13 +99,18 @@ static DEFAULT_WEIGHTS: std::sync::LazyLock<ComplexityWeights> =
     std::sync::LazyLock::new(ComplexityWeights::default);
 
 impl ComplexityFactors {
-    /// Calculate weighted complexity score
+    /// Calculate weighted complexity score.
+    ///
+    /// Uses a blend of (a) the standard weighted average and (b) the
+    /// peak-factor signal. A single very-high factor (e.g. reasoning_depth
+    /// 0.9 for a clearly architectural task) should be enough to push the
+    /// task out of the Sonnet band; without the peak term the average is
+    /// too easily dragged down by the always-low base values of unrelated
+    /// factors. Rescaled to `[0, 1]`.
     #[inline]
     pub fn weighted_score(&self) -> f32 {
-        // Use cached weights
         let weights = &*DEFAULT_WEIGHTS;
 
-        // Token-based complexity
         let token_factor = match self.token_estimate {
             0..=500 => 0.2,
             501..=1000 => 0.4,
@@ -114,13 +119,49 @@ impl ComplexityFactors {
             _ => 1.0,
         };
 
-        (token_factor * weights.token_weight)
+        let factors = [
+            self.reasoning_depth,
+            self.domain_expertise,
+            self.code_complexity,
+            self.planning_complexity,
+            self.security_sensitivity,
+            self.performance_criticality,
+        ];
+
+        let weighted = (token_factor * weights.token_weight)
             + (self.reasoning_depth * weights.reasoning_weight)
             + (self.domain_expertise * weights.domain_weight)
             + (self.code_complexity * weights.code_weight)
             + (self.planning_complexity * weights.planning_weight)
             + (self.security_sensitivity * weights.security_weight)
-            + (self.performance_criticality * weights.performance_weight)
+            + (self.performance_criticality * weights.performance_weight);
+
+        let total_weight = weights.token_weight
+            + weights.reasoning_weight
+            + weights.domain_weight
+            + weights.code_weight
+            + weights.planning_weight
+            + weights.security_weight
+            + weights.performance_weight;
+
+        let avg = if total_weight > 0.0 {
+            weighted / total_weight
+        } else {
+            0.0
+        };
+
+        // Peak: average of the top-2 non-token factors. Lets a dominant
+        // signal (deep reasoning + strong domain) pull a clearly complex
+        // task into Opus territory even when several unrelated factors
+        // still sit at their base value.
+        let mut sorted = factors;
+        sorted.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+        let peak = (sorted[0] + sorted[1]) * 0.5;
+
+        // 50/50 blend: average prevents a single outlier from elevating a
+        // simple task; peak prevents low-base unrelated factors from
+        // dragging a complex task down.
+        (avg * 0.5 + peak * 0.5).clamp(0.0, 1.0)
     }
 }
 
@@ -145,11 +186,16 @@ pub struct ComplexityWeights {
 
 impl Default for ComplexityWeights {
     fn default() -> Self {
+        // Tuned so a clearly-architectural task (e.g. "design a distributed
+        // auth system with OAuth2, JWT, and a security audit") scores in the
+        // Opus band (>0.7), while a routine REST endpoint stays in the
+        // Sonnet band (~0.4). Reasoning + domain dominate; token count is
+        // a weak signal for short well-specified tasks.
         Self {
-            token_weight: 0.20,
-            reasoning_weight: 0.25,
-            domain_weight: 0.10,
-            code_weight: 0.15,
+            token_weight: 0.10,
+            reasoning_weight: 0.30,
+            domain_weight: 0.20,
+            code_weight: 0.10,
             planning_weight: 0.10,
             security_weight: 0.10,
             performance_weight: 0.10,
@@ -465,7 +511,13 @@ impl TaskComplexityAnalyzer {
         if task.contains("database") || task.contains("sql") || task.contains("query") {
             expertise += 0.2;
         }
-        if task.contains("network") || task.contains("protocol") || task.contains("http") {
+        if task.contains("network")
+            || task.contains("protocol")
+            || task.contains("http")
+            || task.contains("rest")
+            || task.contains("api")
+            || task.contains("endpoint")
+        {
             expertise += 0.2;
         }
         if task.contains("security") || task.contains("crypto") || task.contains("auth") {
@@ -499,9 +551,23 @@ impl TaskComplexityAnalyzer {
         if task.contains("generic") || task.contains("trait") || task.contains("interface") {
             complexity += 0.1;
         }
+        // Application-layer features that imply non-trivial code paths
+        // (validation, registration, error handling) — common signals for
+        // a moderate task.
+        if task.contains("validation")
+            || task.contains("validate")
+            || task.contains("registration")
+            || task.contains("error handling")
+        {
+            complexity += 0.2;
+        }
 
         // Simple code patterns reduce complexity
-        if task.contains("simple") || task.contains("basic") || task.contains("minor") {
+        if task.contains("simple")
+            || task.contains("basic")
+            || task.contains("minor")
+            || task.contains("typo")
+        {
             complexity -= 0.2;
         }
 

@@ -89,6 +89,12 @@ pub struct PatternStoreConfig {
     pub prune_threshold: u32,
     /// Maximum age for unused patterns (seconds)
     pub max_unused_age_secs: u64,
+    /// Storage path for the underlying VectorDB. When `None`, defaults to
+    /// `".reasoning_bank_patterns"`. Tests should set this to a unique
+    /// temporary directory because VectorDB pins its dimension to whatever
+    /// is on disk and a shared path causes cross-test dimension mismatches.
+    #[serde(default)]
+    pub storage_path: Option<String>,
 }
 
 impl Default for PatternStoreConfig {
@@ -104,6 +110,7 @@ impl Default for PatternStoreConfig {
             auto_prune: true,
             prune_threshold: 2,
             max_unused_age_secs: 86400 * 30, // 30 days
+            storage_path: None,
         }
     }
 }
@@ -452,10 +459,15 @@ impl PatternStore {
             _ => DistanceMetric::Cosine,
         };
 
+        let storage_path = config
+            .storage_path
+            .clone()
+            .unwrap_or_else(|| ".reasoning_bank_patterns".to_string());
+
         let db_options = DbOptions {
             dimensions: config.embedding_dim,
             distance_metric,
-            storage_path: ".reasoning_bank_patterns".to_string(),
+            storage_path,
             hnsw_config: Some(HnswConfig {
                 m: config.m,
                 ef_construction: config.ef_construction,
@@ -686,7 +698,7 @@ impl PatternStore {
                 })
                 .collect();
 
-            sorted.sort_by(|a, b| a.1.last_accessed.cmp(&b.1.last_accessed));
+            sorted.sort_by_key(|a| a.1.last_accessed);
 
             let remove_count = sorted.len().min(self.config.max_patterns / 10);
             sorted
@@ -837,8 +849,10 @@ mod tests {
 
     #[test]
     fn test_pattern_store_creation() {
+        let tmp = tempfile::tempdir().unwrap();
         let config = PatternStoreConfig {
             embedding_dim: 4,
+            storage_path: Some(tmp.path().join("pat").to_string_lossy().into_owned()),
             ..Default::default()
         };
         let store = PatternStore::new(config);
@@ -847,9 +861,11 @@ mod tests {
 
     #[test]
     fn test_pattern_store_operations() {
+        let tmp = tempfile::tempdir().unwrap();
         let config = PatternStoreConfig {
             embedding_dim: 4,
             min_confidence: 0.1,
+            storage_path: Some(tmp.path().join("pat").to_string_lossy().into_owned()),
             ..Default::default()
         };
         let mut store = PatternStore::new(config).unwrap();

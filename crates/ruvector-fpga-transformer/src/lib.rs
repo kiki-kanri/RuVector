@@ -53,7 +53,7 @@
 //! - Test vectors for validation
 //! - Ed25519 signature
 
-#![warn(missing_docs)]
+#![allow(missing_docs)]
 #![cfg_attr(feature = "wasm", allow(unused_imports))]
 
 pub mod artifact;

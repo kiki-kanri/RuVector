@@ -40,7 +40,7 @@ fn bench_mk_vector_type(c: &mut Criterion) {
 
 fn bench_proof_env_creation(c: &mut Criterion) {
     c.bench_function("ProofEnvironment::new", |b| {
-        b.iter(|| ruvector_verified::ProofEnvironment::new());
+        b.iter(ruvector_verified::ProofEnvironment::new);
     });
 }
 

@@ -555,11 +555,7 @@ impl EpisodicMemory {
 
         let searches = self.stats.total_searches.load(Ordering::SeqCst);
         let total_latency = self.stats.total_search_latency_us.load(Ordering::SeqCst);
-        let avg_latency = if searches > 0 {
-            total_latency / searches
-        } else {
-            0
-        };
+        let avg_latency = total_latency.checked_div(searches).unwrap_or(0);
 
         EpisodicMemoryStats {
             total_episodes: total,

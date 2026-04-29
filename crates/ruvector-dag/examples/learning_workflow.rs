@@ -1,5 +1,8 @@
 //! SONA learning workflow example
 
+// Example code is illustrative; relax style lints that don't affect demonstration.
+#![allow(clippy::manual_is_multiple_of)]
+
 use ruvector_dag::dag::{OperatorNode, OperatorType, QueryDag};
 use ruvector_dag::sona::{DagSonaEngine, DagTrajectory, DagTrajectoryBuffer};
 

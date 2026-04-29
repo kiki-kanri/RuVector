@@ -248,6 +248,7 @@ impl GeneratedTask {
             "test",
             "verify",
             "validate",
+            "validation",
             "coverage",
             "unit",
             "integration",

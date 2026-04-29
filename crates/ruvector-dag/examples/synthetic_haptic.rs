@@ -3,6 +3,9 @@
 //! This example implements a complete haptic control loop using ruvector DAG components:
 //! - Layer 1: Event sensing with lock-free queues
 //! - Layer 2: Reflex arc using DAG tension and MinCut signals
+
+// Example code is illustrative; relax style lints that don't affect demonstration.
+#![allow(clippy::manual_is_multiple_of, clippy::needless_range_loop)]
 //! - Layer 3: HDC-style associative memory for pattern recognition
 //! - Layer 4: SONA-based learning gated by coherence
 //! - Layer 5: Energy-budgeted actuation with deterministic timing

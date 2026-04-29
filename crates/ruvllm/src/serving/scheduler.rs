@@ -185,7 +185,7 @@ impl RequestQueue {
     /// Sort pending by priority (for priority-based scheduling)
     pub fn sort_pending_by_priority(&mut self) {
         let mut pending_vec: Vec<_> = self.pending.drain(..).collect();
-        pending_vec.sort_by(|a, b| b.priority.cmp(&a.priority));
+        pending_vec.sort_by_key(|b| std::cmp::Reverse(b.priority));
         self.pending = pending_vec.into_iter().collect();
     }
 

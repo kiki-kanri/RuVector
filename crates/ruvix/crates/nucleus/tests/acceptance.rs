@@ -26,6 +26,9 @@
 //!
 //! Verify: witness log contains exactly 1 boot + 1 mount + 1 mutation attestation
 
+// Test imports/casts kept verbose for ADR-087 fidelity; suppress clippy warnings.
+#![allow(unused_imports, clippy::unnecessary_cast)]
+
 use ruvix_nucleus::{
     CapHandle, CheckpointConfig, GraphHandle, GraphMutation, Kernel, KernelConfig, MsgPriority,
     ProofTier, QueueHandle, RegionPolicy, RvfComponentId, RvfMountHandle, SensorDescriptor,

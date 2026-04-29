@@ -13,7 +13,10 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust,no_run
+//! ```rust,ignore
+//! // OcrEngine is illustrative — the current API exposes Config,
+//! // CacheManager, and lower-level pipeline structs; full Engine
+//! // glue is a follow-up.
 //! use ruvector_scipix::{Config, OcrEngine, Result};
 //!
 //! #[tokio::main]

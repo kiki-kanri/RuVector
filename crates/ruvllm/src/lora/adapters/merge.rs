@@ -151,15 +151,21 @@ impl AdapterMerger {
                 if let Some(adapter) = lora.get_adapter(module) {
                     let adapter = adapter.read();
 
-                    // Add to merged weights
-                    for i in 0..merged_adapter.lora_a.nrows() {
-                        for j in 0..merged_adapter.lora_a.ncols() {
+                    // Add to merged weights, clamped to the smaller of the two
+                    // shapes so adapters with different ranks merge safely
+                    // (e.g. coder rank=16 + researcher rank=8 → bottom 8 cols).
+                    let a_rows = merged_adapter.lora_a.nrows().min(adapter.lora_a.nrows());
+                    let a_cols = merged_adapter.lora_a.ncols().min(adapter.lora_a.ncols());
+                    for i in 0..a_rows {
+                        for j in 0..a_cols {
                             merged_adapter.lora_a[[i, j]] += adapter.lora_a[[i, j]] / n;
                         }
                     }
 
-                    for i in 0..merged_adapter.lora_b.nrows() {
-                        for j in 0..merged_adapter.lora_b.ncols() {
+                    let b_rows = merged_adapter.lora_b.nrows().min(adapter.lora_b.nrows());
+                    let b_cols = merged_adapter.lora_b.ncols().min(adapter.lora_b.ncols());
+                    for i in 0..b_rows {
+                        for j in 0..b_cols {
                             merged_adapter.lora_b[[i, j]] += adapter.lora_b[[i, j]] / n;
                         }
                     }
@@ -250,31 +256,29 @@ impl AdapterMerger {
                 .ok_or_else(|| RuvLLMError::NotFound(format!("Module {:?} not found", module)))?;
             let mut merged_adapter = merged_adapter.write();
 
-            let adapter_a = lora_a.get_adapter(module).ok_or_else(|| {
-                RuvLLMError::NotFound(format!("Module {:?} not found in first adapter", module))
-            })?;
-            let adapter_b = lora_b.get_adapter(module).ok_or_else(|| {
-                RuvLLMError::NotFound(format!("Module {:?} not found in second adapter", module))
-            })?;
-
-            let adapter_a = adapter_a.read();
-            let adapter_b = adapter_b.read();
+            // Adapters may carry different `target_modules`, so a module
+            // present in `output_config` might be missing from one input.
+            // Fall back to interpolating against zero in that case rather
+            // than failing the whole merge.
+            let adapter_a_lock = lora_a.get_adapter(module);
+            let adapter_b_lock = lora_b.get_adapter(module);
+            if adapter_a_lock.is_none() && adapter_b_lock.is_none() {
+                continue;
+            }
+            let adapter_a_guard = adapter_a_lock.as_ref().map(|a| a.read());
+            let adapter_b_guard = adapter_b_lock.as_ref().map(|b| b.read());
+            let zero_a = ndarray::Array2::<f32>::zeros(merged_adapter.lora_a.raw_dim());
+            let zero_b = ndarray::Array2::<f32>::zeros(merged_adapter.lora_b.raw_dim());
+            let a_lora_a = adapter_a_guard.as_ref().map_or(&zero_a, |g| &g.lora_a);
+            let a_lora_b = adapter_a_guard.as_ref().map_or(&zero_b, |g| &g.lora_b);
+            let b_lora_a = adapter_b_guard.as_ref().map_or(&zero_a, |g| &g.lora_a);
+            let b_lora_b = adapter_b_guard.as_ref().map_or(&zero_b, |g| &g.lora_b);
 
             // SLERP for A matrix
-            self.slerp_matrix(
-                &adapter_a.lora_a,
-                &adapter_b.lora_a,
-                t,
-                &mut merged_adapter.lora_a,
-            );
+            self.slerp_matrix(a_lora_a, b_lora_a, t, &mut merged_adapter.lora_a);
 
             // SLERP for B matrix
-            self.slerp_matrix(
-                &adapter_a.lora_b,
-                &adapter_b.lora_b,
-                t,
-                &mut merged_adapter.lora_b,
-            );
+            self.slerp_matrix(a_lora_b, b_lora_b, t, &mut merged_adapter.lora_b);
         }
 
         Ok(merged)
@@ -282,9 +286,13 @@ impl AdapterMerger {
 
     /// Perform SLERP on a matrix
     fn slerp_matrix(&self, a: &Array2<f32>, b: &Array2<f32>, t: f32, output: &mut Array2<f32>) {
-        // Simple linear interpolation (full SLERP requires quaternion math)
-        for i in 0..a.nrows() {
-            for j in 0..a.ncols() {
+        // Simple linear interpolation (full SLERP requires quaternion math).
+        // Clamp to the smallest of the three shapes so mismatched ranks merge
+        // safely instead of panicking on out-of-bounds index.
+        let rows = a.nrows().min(b.nrows()).min(output.nrows());
+        let cols = a.ncols().min(b.ncols()).min(output.ncols());
+        for i in 0..rows {
+            for j in 0..cols {
                 output[[i, j]] = a[[i, j]] * (1.0 - t) + b[[i, j]] * t;
             }
         }

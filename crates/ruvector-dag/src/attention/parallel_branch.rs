@@ -50,14 +50,8 @@ impl ParallelBranchAttention {
             let children = dag.children(node_id);
             if !children.is_empty() {
                 for &child in children {
-                    children_of
-                        .entry(node_id)
-                        .or_insert_with(Vec::new)
-                        .push(child);
-                    parents_of
-                        .entry(child)
-                        .or_insert_with(Vec::new)
-                        .push(node_id);
+                    children_of.entry(node_id).or_default().push(child);
+                    parents_of.entry(child).or_default().push(node_id);
                 }
             }
         }
@@ -166,8 +160,8 @@ impl ParallelBranchAttention {
 
         // Base score for nodes not in any branch
         let base_score = 0.5;
-        for i in 0..n {
-            scores[i] = base_score;
+        for s in scores.iter_mut().take(n) {
+            *s = base_score;
         }
 
         // Compute balance metric
@@ -193,8 +187,8 @@ impl ParallelBranchAttention {
             for &to in dag.children(from) {
                 if from < n && to < n {
                     // Check if this edge connects different branches
-                    let from_branch = branches.iter().position(|b| b.iter().any(|&x| x == from));
-                    let to_branch = branches.iter().position(|b| b.iter().any(|&x| x == to));
+                    let from_branch = branches.iter().position(|b| b.contains(&from));
+                    let to_branch = branches.iter().position(|b| b.contains(&to));
 
                     if from_branch.is_some() && to_branch.is_some() && from_branch != to_branch {
                         scores[to] *= 1.0 - self.config.sync_penalty;
@@ -261,7 +255,7 @@ impl DagAttentionMechanism for ParallelBranchAttention {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dag::{OperatorNode, OperatorType};
+    use crate::dag::OperatorNode;
 
     #[test]
     fn test_detect_branches() {
@@ -270,7 +264,7 @@ mod tests {
 
         let mut dag = QueryDag::new();
         for i in 0..4 {
-            dag.add_node(OperatorNode::new(i, OperatorType::Scan));
+            dag.add_node(OperatorNode::seq_scan(i, "table"));
         }
 
         // Create parallel branches: 0 -> 1, 0 -> 2, 1 -> 3, 2 -> 3
@@ -290,7 +284,7 @@ mod tests {
 
         let mut dag = QueryDag::new();
         for i in 0..3 {
-            let mut node = OperatorNode::new(i, OperatorType::Scan);
+            let mut node = OperatorNode::seq_scan(i, "table");
             node.estimated_cost = (i + 1) as f64;
             dag.add_node(node);
         }

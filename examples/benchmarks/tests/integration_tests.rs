@@ -19,7 +19,7 @@ fn test_vector_index_insert_search() {
     let mut idx = VectorIndex::new(4);
 
     let id1 = idx.insert(DenseVec::new(vec![1.0, 0.0, 0.0, 0.0])).unwrap();
-    let id2 = idx.insert(DenseVec::new(vec![0.9, 0.1, 0.0, 0.0])).unwrap();
+    let _id2 = idx.insert(DenseVec::new(vec![0.9, 0.1, 0.0, 0.0])).unwrap();
     let _id3 = idx.insert(DenseVec::new(vec![0.0, 1.0, 0.0, 0.0])).unwrap();
 
     let q = DenseVec::new(vec![1.0, 0.0, 0.0, 0.0]);

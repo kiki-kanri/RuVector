@@ -114,9 +114,7 @@ pub fn hierarchical_forward(
     let mut current_embedding = query.to_vec();
 
     // Process through each layer from top to bottom
-    for (layer_idx, (embeddings, gnn_layer)) in
-        layer_embeddings.iter().zip(gnn_layers.iter()).enumerate()
-    {
+    for (embeddings, gnn_layer) in layer_embeddings.iter().zip(gnn_layers.iter()) {
         if embeddings.is_empty() {
             continue;
         }

@@ -14,7 +14,7 @@ use crate::error::{GnnError, Result};
 use memmap2::{MmapMut, MmapOptions};
 use parking_lot::RwLock;
 use std::fs::{File, OpenOptions};
-use std::io::{self, Write};
+use std::io;
 use std::path::Path;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
@@ -36,7 +36,7 @@ impl AtomicBitmap {
     /// # Arguments
     /// * `size` - Number of bits to allocate
     pub fn new(size: usize) -> Self {
-        let num_words = (size + 63) / 64;
+        let num_words = size.div_ceil(64);
         let bits = (0..num_words).map(|_| AtomicU64::new(0)).collect();
 
         Self { bits, size }
@@ -117,6 +117,7 @@ impl AtomicBitmap {
 #[derive(Debug)]
 pub struct MmapManager {
     /// The memory-mapped file
+    #[allow(dead_code)]
     file: File,
     /// Mutable memory mapping
     mmap: MmapMut,
@@ -129,6 +130,7 @@ pub struct MmapManager {
     /// Bitmap tracking which embeddings have been modified
     dirty_bitmap: AtomicBitmap,
     /// Pin count for each page (prevents eviction)
+    #[allow(dead_code)]
     pin_count: Vec<AtomicU32>,
     /// Maximum number of nodes
     max_nodes: usize,
@@ -154,6 +156,7 @@ impl MmapManager {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(path)
             .map_err(|e| GnnError::mmap(format!("Failed to open mmap file: {}", e)))?;
 
@@ -171,7 +174,7 @@ impl MmapManager {
 
         // Get system page size
         let page_size = page_size::get();
-        let num_pages = (file_size + page_size - 1) / page_size;
+        let num_pages = file_size.div_ceil(page_size);
 
         Ok(Self {
             file,
@@ -414,6 +417,7 @@ impl MmapGradientAccumulator {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(path)
             .map_err(|e| GnnError::mmap(format!("Failed to open gradient file: {}", e)))?;
 
@@ -437,7 +441,7 @@ impl MmapGradientAccumulator {
 
         // Use a lock granularity of 64 nodes per lock for good parallelism
         let lock_granularity = 64;
-        let num_locks = (max_nodes + lock_granularity - 1) / lock_granularity;
+        let num_locks = max_nodes.div_ceil(lock_granularity);
         let locks = (0..num_locks).map(|_| RwLock::new(())).collect();
 
         Ok(Self {
@@ -615,7 +619,6 @@ unsafe impl Sync for MmapGradientAccumulator {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use tempfile::TempDir;
 
     #[test]
@@ -746,7 +749,7 @@ mod tests {
 
         {
             let mut manager = MmapManager::new(&path, 64, 100).unwrap();
-            let embedding = vec![3.14f32; 64];
+            let embedding = vec![1.5f32; 64];
             manager.set_embedding(10, &embedding);
             manager.flush_dirty().unwrap();
         }
@@ -755,8 +758,8 @@ mod tests {
         {
             let manager = MmapManager::new(&path, 64, 100).unwrap();
             let retrieved = manager.get_embedding(10);
-            assert_eq!(retrieved[0], 3.14);
-            assert_eq!(retrieved[63], 3.14);
+            assert_eq!(retrieved[0], 1.5);
+            assert_eq!(retrieved[63], 1.5);
         }
     }
 

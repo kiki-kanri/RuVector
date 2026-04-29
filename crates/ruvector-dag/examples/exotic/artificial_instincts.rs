@@ -3,6 +3,9 @@
 //! Encode instincts instead of goals.
 //!
 //! Instincts like:
+
+// Example code is illustrative; relax style lints that don't affect demonstration.
+#![allow(unused_variables, clippy::new_without_default)]
 //! - Avoid fragmentation
 //! - Preserve causal continuity
 //! - Minimize delayed consequences

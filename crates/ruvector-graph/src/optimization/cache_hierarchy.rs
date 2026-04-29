@@ -48,9 +48,12 @@ impl CacheHierarchy {
             return Some(data);
         }
 
-        // Fall back to cold storage
-        if let Some(data) = self.cold_storage.read().get(node_id) {
-            // Promote to hot if frequently accessed
+        // Fall back to cold storage. Read into an owned value and drop the
+        // read guard before calling `promote_to_hot`, which acquires
+        // `cold_storage.write()` — `parking_lot::RwLock` is not re-entrant,
+        // so holding the read guard across the write would deadlock.
+        let cold_data = self.cold_storage.read().get(node_id);
+        if let Some(data) = cold_data {
             if self.access_tracker.read().should_promote(node_id) {
                 self.promote_to_hot(node_id, data.clone());
             }

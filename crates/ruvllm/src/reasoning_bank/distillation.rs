@@ -531,11 +531,11 @@ impl MemoryDistiller {
 
         // Sort by frequency
         let mut common_actions: Vec<_> = action_counts.into_iter().collect();
-        common_actions.sort_by(|a, b| b.1.cmp(&a.1));
+        common_actions.sort_by_key(|b| std::cmp::Reverse(b.1));
         common_actions.truncate(10);
 
         let mut common_lessons: Vec<_> = lesson_counts.into_iter().collect();
-        common_lessons.sort_by(|a, b| b.1.cmp(&a.1));
+        common_lessons.sort_by_key(|b| std::cmp::Reverse(b.1));
         common_lessons.truncate(10);
 
         // Determine category (most common)

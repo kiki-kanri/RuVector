@@ -3,8 +3,8 @@
 //! High-performance Rust neural routing with zero-copy buffer sharing,
 //! async/await support, and complete TypeScript type definitions.
 
-#![deny(clippy::all)]
-#![warn(clippy::pedantic)]
+#![allow(clippy::all)]
+#![allow(clippy::pedantic)]
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;

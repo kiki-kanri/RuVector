@@ -3,6 +3,9 @@
 //! Distributed coherence-sensing substrates that maintain collective
 //! homeostasis across nodes without central coordination.
 //!
+
+// Example code is illustrative; relax style lints that don't affect demonstration.
+#![allow(clippy::collapsible_if, clippy::new_without_default)]
 //! Key concepts:
 //! - Consensus through coherence, not voting
 //! - Tension propagates across federation boundaries

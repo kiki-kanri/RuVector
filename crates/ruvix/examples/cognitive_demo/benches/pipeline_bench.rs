@@ -2,7 +2,7 @@
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use ruvix_demo::{
-    components::{Attestor, FeatureExtractor, KernelInterface, SensorAdapter},
+    components::{Attestor, Component, FeatureExtractor, KernelInterface, SensorAdapter},
     pipeline::{CognitivePipeline, PipelineConfig},
     PerceptionEvent,
 };

@@ -153,7 +153,7 @@ fn main() {
             .iter()
             .map(|(m, c)| format!("{}:{:.0}%", m, *c as f64 / total as f64 * 100.0))
             .collect();
-        if parts.len() > 0 {
+        if !parts.is_empty() {
             println!("  │    {:<16} {}  │", bucket, parts.join(" "));
         }
     }

@@ -3,6 +3,9 @@
 //! Compute substrates where reasoning integrity is monitored like voltage or temperature.
 //!
 //! When coherence drops:
+
+// Example code is illustrative; relax style lints that don't affect demonstration.
+#![allow(unused_imports)]
 //! - Reduce precision
 //! - Exit early
 //! - Route to simpler paths

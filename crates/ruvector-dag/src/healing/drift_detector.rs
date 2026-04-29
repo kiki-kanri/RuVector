@@ -40,10 +40,7 @@ impl LearningDriftDetector {
     }
 
     pub fn record(&mut self, metric: &str, value: f64) {
-        let values = self
-            .current_values
-            .entry(metric.to_string())
-            .or_insert_with(Vec::new);
+        let values = self.current_values.entry(metric.to_string()).or_default();
 
         values.push(value);
 

@@ -1,7 +1,17 @@
 [workspace]
-exclude = ["crates/micro-hnsw-wasm", "crates/ruvector-hyperbolic-hnsw", "crates/ruvector-hyperbolic-hnsw-wasm", "examples/ruvLLM/esp32", "examples/ruvLLM/esp32-flash", "examples/edge-net", "examples/data", "examples/ruvLLM", "examples/delta-behavior", "crates/rvf", "crates/rvf/*", "crates/rvf/*/*", "examples/rvf-desktop", "crates/mcp-brain-server"]
+exclude = ["crates/micro-hnsw-wasm", "crates/ruvector-hyperbolic-hnsw", "crates/ruvector-hyperbolic-hnsw-wasm", "examples/ruvLLM/esp32", "examples/ruvLLM/esp32-flash", "examples/edge-net", "examples/data", "examples/ruvLLM", "examples/delta-behavior", "crates/rvf", "crates/rvf/*", "crates/rvf/*/*", "examples/rvf-desktop", "crates/mcp-brain-server",
+    # ruvector-postgres is a pgrx-based PostgreSQL extension. Its build script
+    # requires `$PGRX_HOME` set up via `cargo install cargo-pgrx --version 0.12.9`
+    # and `cargo pgrx init`, which downloads and builds multiple Postgres
+    # versions. Keep it out of default workspace builds so `cargo build --workspace`
+    # works in stock environments. Build it explicitly with `cargo build -p ruvector-postgres`
+    # after running pgrx init.
+    "crates/ruvector-postgres"]
 members = [
+    # "crates/ruvector-acorn",
+    # "crates/ruvector-acorn-wasm",
     # "crates/ruvector-rabitq",
+    # "crates/ruvector-rabitq-wasm",
     # "crates/ruvector-rulake",
     "crates/ruvector-core",
     # "crates/ruvector-node",
@@ -39,7 +49,7 @@ members = [
     # "crates/ruvector-mincut-node",
     # "crates/ruvector-mincut-gated-transformer",
     # "crates/ruvector-mincut-gated-transformer-wasm",
-    # "crates/ruvector-postgres",
+    # NOTE: ruvector-postgres is in workspace `exclude` (pgrx env requirement).
     # "crates/ruvector-nervous-system",
     # "examples/refrag-pipeline",
     # "examples/scipix",
@@ -108,10 +118,10 @@ members = [
     # "crates/neural-trader-coherence",
     # "crates/neural-trader-replay",
     # "crates/neural-trader-wasm",
-    # # Kalshi integration (ADR-153)
+    # Kalshi integration (ADR-153)
     # "crates/ruvector-kalshi",
     # "crates/neural-trader-strategies",
-    # # RuVix Cognition Kernel (organized under crates/ruvix/)
+    # RuVix Cognition Kernel (organized under crates/ruvix/)
     # "crates/ruvix/crates/types",
     # "crates/ruvix/crates/region",
     # "crates/ruvix/crates/queue",
@@ -121,14 +131,14 @@ members = [
     # "crates/ruvix/crates/boot",
     # "crates/ruvix/crates/vecgraph",
     # "crates/ruvix/crates/nucleus",
-    # # Phase B: Bare metal AArch64 support
+    # Phase B: Bare metal AArch64 support
     # "crates/ruvix/crates/hal",
     # "crates/ruvix/crates/aarch64",
     # "crates/ruvix/crates/drivers",
     # "crates/ruvix/tests",
     # "crates/ruvix/benches",
     # "crates/ruvix/examples/cognitive_demo",
-    # # rvAgent — AI Agent Framework (DeepAgents Rust conversion)
+    # rvAgent — AI Agent Framework (DeepAgents Rust conversion)
     # "crates/rvAgent/rvagent-core",
     # "crates/rvAgent/rvagent-backends",
     # "crates/rvAgent/rvagent-middleware",
@@ -138,12 +148,15 @@ members = [
     # "crates/rvAgent/rvagent-acp",
     # "crates/rvAgent/rvagent-mcp",
     # "crates/rvAgent/rvagent-wasm",
-    # # ETL pipeline example
+    # "crates/rvAgent/rvagent-a2a",
+    # ADR-159 a2a-swarm demo
+    # "examples/a2a-swarm",
+    # ETL pipeline example
     # "examples/train-discoveries",
-    # # Spectral graph sparsification
+    # Spectral graph sparsification
     # "crates/ruvector-sparsifier",
     # "crates/ruvector-sparsifier-wasm",
-    # # Consciousness metrics (IIT Φ, causal emergence)
+    # Consciousness metrics (IIT Φ, causal emergence)
     # "crates/ruvector-consciousness",
     # "crates/ruvector-consciousness-wasm",
     # "examples/cmb-consciousness",
@@ -152,49 +165,49 @@ members = [
     # "examples/quantum-consciousness",
     # "examples/gene-consciousness",
     # "examples/climate-consciousness",
-    # # JS bundle decompiler (ADR-135)
+    # JS bundle decompiler (ADR-135)
     # "crates/ruvector-decompiler",
     # "crates/ruvector-decompiler-wasm",
-    # # DiskANN / Vamana (ADR-143)
+    # DiskANN / Vamana (ADR-143)
     # "crates/ruvector-diskann",
     # "crates/ruvector-diskann-node",
-    # # Boundary-first scientific discovery PoC
+    # Boundary-first scientific discovery PoC
     # "examples/boundary-discovery",
-    # # CMB Cold Spot boundary-first discovery
+    # CMB Cold Spot boundary-first discovery
     # "examples/cmb-boundary-discovery",
-    # # FRB population boundary discovery (CHIME-like data)
+    # FRB population boundary discovery (CHIME-like data)
     # "examples/frb-boundary-discovery",
-    # # Cosmic void boundary information content
+    # Cosmic void boundary information content
     # "examples/void-boundary-discovery",
-    # # Multi-regime temporal attractor boundary detection
+    # Multi-regime temporal attractor boundary detection
     # "examples/temporal-attractor-discovery",
-    # # Music genre boundary discovery via spectral graph bisection
+    # Music genre boundary discovery via spectral graph bisection
     # "examples/music-boundary-discovery",
-    # # Weather regime boundary detection (variance/correlation precedes temperature)
+    # Weather regime boundary detection (variance/correlation precedes temperature)
     # "examples/weather-boundary-discovery",
-    # # Market regime boundary discovery via correlation structure
+    # Market regime boundary discovery via correlation structure
     # "examples/market-boundary-discovery",
-    # # Health state boundary detection from wearable sensor data
+    # Health state boundary detection from wearable sensor data
     # "examples/health-boundary-discovery",
-    # # SETI exotic signals gallery: boundary-first detection of sub-threshold signals
+    # SETI exotic signals gallery: boundary-first detection of sub-threshold signals
     # "examples/seti-exotic-signals",
-    # # SETI boundary-first discovery: sub-noise signal detection via coherence graphs
+    # SETI boundary-first discovery: sub-noise signal detection via coherence graphs
     # "examples/seti-boundary-discovery",
-    # # Earthquake precursor detection via inter-station correlation boundary shifts
+    # Earthquake precursor detection via inter-station correlation boundary shifts
     # "examples/earthquake-boundary-discovery",
-    # # Pandemic outbreak detection 60 days before case counts via correlation boundaries
+    # Pandemic outbreak detection 60 days before case counts via correlation boundaries
     # "examples/pandemic-boundary-discovery",
-    # # Infrastructure failure prediction via sensor correlation boundaries
+    # Infrastructure failure prediction via sensor correlation boundaries
     # "examples/infrastructure-boundary-discovery",
-    # # Pre-seizure detection via brain correlation boundary shifts
+    # Pre-seizure detection via brain correlation boundary shifts
     # "examples/brain-boundary-discovery",
-    # # Clinical-publication-grade pre-seizure detection report with CSV output
+    # Clinical-publication-grade pre-seizure detection report with CSV output
     # "examples/seizure-clinical-report",
-    # # Closed-loop seizure detection + therapeutic response simulation
+    # Closed-loop seizure detection + therapeutic response simulation
     # "examples/seizure-therapeutic-sim",
-    # # Real EEG analysis: CHB-MIT PhysioNet data with boundary-first detection
+    # Real EEG analysis: CHB-MIT PhysioNet data with boundary-first detection
     # "examples/real-eeg-analysis",
-    # # Multi-seizure cross-patient analysis: all 7 chb01 seizures
+    # Multi-seizure cross-patient analysis: all 7 chb01 seizures
     # "examples/real-eeg-multi-seizure",
 ]
 resolver = "2"

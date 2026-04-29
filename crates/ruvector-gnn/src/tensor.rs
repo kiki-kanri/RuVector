@@ -8,7 +8,6 @@
 //! - Normalization
 
 use crate::error::{GnnError, Result};
-use rand::Rng;
 use rand_distr::{Distribution, Normal, Uniform};
 
 /// Basic tensor operations for GNN computations
@@ -56,7 +55,7 @@ impl Tensor {
     /// # Errors
     /// Returns `GnnError::InvalidShape` if shape is empty or contains zero
     pub fn zeros(shape: &[usize]) -> Result<Self> {
-        if shape.is_empty() || shape.iter().any(|&d| d == 0) {
+        if shape.is_empty() || shape.contains(&0) {
             return Err(GnnError::invalid_shape(format!(
                 "Invalid shape: {:?}",
                 shape
@@ -146,9 +145,9 @@ impl Tensor {
                 }
 
                 let mut result = vec![0.0; m];
-                for i in 0..m {
+                for (i, slot) in result.iter_mut().enumerate().take(m) {
                     for j in 0..n {
-                        result[i] += self.data[i * n + j] * other.data[j];
+                        *slot += self.data[i * n + j] * other.data[j];
                     }
                 }
                 Ok(Tensor::from_vec(result))
@@ -777,7 +776,7 @@ mod tests {
         // Tanh should be in [-1, 1]
         let tanh = tensor.tanh();
         for &val in &tanh.data {
-            assert!(val >= -1.0 && val <= 1.0);
+            assert!((-1.0..=1.0).contains(&val));
         }
 
         // ReLU should be non-negative

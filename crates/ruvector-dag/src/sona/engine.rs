@@ -88,7 +88,7 @@ impl DagSonaEngine {
         }
 
         // Recompute clusters periodically (every 100 patterns)
-        if self.reasoning_bank.pattern_count() % 100 == 0 {
+        if self.reasoning_bank.pattern_count().is_multiple_of(100) {
             self.reasoning_bank.recompute_clusters();
         }
     }
@@ -102,7 +102,7 @@ impl DagSonaEngine {
         }
 
         // Encode operator type distribution (20 different types)
-        let mut type_counts = vec![0usize; 20];
+        let mut type_counts = [0usize; 20];
         for node in dag.nodes() {
             let type_idx = match &node.op_type {
                 OperatorType::SeqScan { .. } => 0,

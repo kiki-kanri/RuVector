@@ -351,7 +351,10 @@ impl RuvLtraMediumConfig {
             sona_config: SonaConfig {
                 hidden_dim: 2048,
                 embedding_dim: 1024, // Half of hidden_size
-                micro_lora_rank: 4,
+                // sona::MicroLoRA panics on rank > 2 (see crates/sona/src/lora.rs:55).
+                // Cap at 2 to match the constraint; tracked as follow-up to widen
+                // MicroLoRA rank support if larger ranks are wanted here.
+                micro_lora_rank: 2,
                 base_lora_rank: 8,
                 instant_learning_rate: 0.01,
                 background_learning_rate: 0.001,

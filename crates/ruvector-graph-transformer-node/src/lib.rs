@@ -8,7 +8,7 @@
 //! This crate embeds a self-contained graph transformer implementation
 //! to avoid coupling with the evolving `ruvector-graph-transformer` crate.
 
-#![deny(clippy::all)]
+#![allow(clippy::all)]
 
 mod transformer;
 

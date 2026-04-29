@@ -468,7 +468,21 @@ impl CoherenceValidator {
         let violation_penalty =
             violations.iter().map(|v| v.severity).sum::<f32>() / segments.len() as f32;
 
-        let flow_score = (avg_transition - violation_penalty * 0.5).clamp(0.0, 1.0);
+        // Reward explicit transition markers ("first", "then", "finally"…)
+        // because the simple-hash embedding can't catch logical flow on its
+        // own: even tightly connected steps look semantically far apart and
+        // would otherwise clamp the score to zero.
+        let marker_hits = segments
+            .iter()
+            .filter(|s| self.has_transition_marker(s))
+            .count() as f32;
+        let marker_bonus = if segments.is_empty() {
+            0.0
+        } else {
+            (marker_hits / segments.len() as f32) * 0.3
+        };
+
+        let flow_score = (avg_transition - violation_penalty * 0.5 + marker_bonus).clamp(0.0, 1.0);
         let has_logical_flow = flow_score >= self.config.logical_flow_threshold;
 
         Ok(LogicalFlowResult {
@@ -490,17 +504,34 @@ impl CoherenceValidator {
             }
         }
 
-        // Simple character-based embedding (placeholder for actual embedding model)
+        // Simple word-bag embedding (placeholder for actual embedding model).
+        // Hash is *position-independent* so paraphrased sentences with the
+        // same vocabulary cluster together — otherwise cosine similarity is
+        // dominated by word position, not content.
         let mut embedding = vec![0.0f32; self.config.embedding_dim];
         let text_lower = text.to_lowercase();
         let words: Vec<&str> = text_lower.split_whitespace().collect();
 
-        // Simple hash-based feature extraction
-        for (i, word) in words.iter().enumerate() {
-            for (j, c) in word.chars().enumerate() {
-                let idx =
-                    ((c as usize * 31 + j * 17 + i * 13) % self.config.embedding_dim) as usize;
-                embedding[idx] += 1.0;
+        for word in &words {
+            // FNV-1a-ish over the bytes of the word, no position component.
+            let mut hash: usize = 0xcbf2_9ce4_8422_2325;
+            for c in word.bytes() {
+                hash ^= c as usize;
+                hash = hash.wrapping_mul(0x100_0000_01b3);
+            }
+            let idx = hash % self.config.embedding_dim;
+            embedding[idx] += 1.0;
+
+            // Also hash 2-char shingles so morphological variants
+            // ("sit"/"sitting") still share signal.
+            for window in word.as_bytes().windows(2) {
+                let mut hh: usize = 0xcbf2_9ce4_8422_2325;
+                for &c in window {
+                    hh ^= c as usize;
+                    hh = hh.wrapping_mul(0x100_0000_01b3);
+                }
+                let idx2 = hh % self.config.embedding_dim;
+                embedding[idx2] += 0.5;
             }
         }
 

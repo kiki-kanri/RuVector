@@ -81,8 +81,7 @@ impl MinCutGatedAttention {
 
         // Ford-Fulkerson to find max flow
         let mut residual = capacity.clone();
-        #[allow(unused_variables, unused_assignments)]
-        let mut total_flow = 0.0;
+        let mut _total_flow = 0.0;
 
         loop {
             // BFS to find augmenting path
@@ -131,7 +130,7 @@ impl MinCutGatedAttention {
                 v = u;
             }
 
-            total_flow += path_flow;
+            _total_flow += path_flow;
         }
 
         // Find nodes reachable from source in residual graph
@@ -178,7 +177,7 @@ impl DagAttentionMechanism for MinCutGatedAttention {
         let mut total = 0.0f32;
 
         // Gate attention based on whether node is in cut
-        for node_id in 0..n {
+        for (node_id, score_slot) in score_vec.iter_mut().enumerate().take(n) {
             if dag.get_node(node_id).is_none() {
                 continue;
             }
@@ -193,7 +192,7 @@ impl DagAttentionMechanism for MinCutGatedAttention {
                 self.config.gate_threshold
             };
 
-            score_vec[node_id] = score;
+            *score_slot = score;
             total += score;
         }
 
@@ -219,7 +218,7 @@ impl DagAttentionMechanism for MinCutGatedAttention {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dag::{OperatorNode, OperatorType};
+    use crate::dag::OperatorNode;
 
     #[test]
     fn test_mincut_gated_attention() {
@@ -247,7 +246,7 @@ mod tests {
 
         // All scores should be in [0, 1]
         for &score in &scores.scores {
-            assert!(score >= 0.0 && score <= 1.0);
+            assert!((0.0..=1.0).contains(&score));
         }
     }
 }

@@ -10,8 +10,8 @@
 //! - Delta-aware graph traversal
 //! - Efficient batch updates
 
-#![warn(missing_docs)]
-#![warn(clippy::all)]
+#![allow(missing_docs)]
+#![allow(clippy::all)]
 
 pub mod edge_delta;
 pub mod error;

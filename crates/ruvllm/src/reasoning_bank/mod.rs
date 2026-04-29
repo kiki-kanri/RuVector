@@ -447,7 +447,14 @@ mod tests {
 
     #[test]
     fn test_stats_tracking() {
-        let config = ReasoningBankConfig::default();
+        // Use a unique temp dir for the underlying VectorDB; the default
+        // `.reasoning_bank_patterns` path is shared and triggers
+        // "Database already open. Cannot acquire lock." when nextest runs
+        // tests concurrently.
+        let tmp = tempfile::tempdir().unwrap();
+        let mut config = ReasoningBankConfig::default();
+        config.pattern_config.storage_path =
+            Some(tmp.path().join("pat").to_string_lossy().into_owned());
         let bank = ReasoningBank::new(config).unwrap();
 
         let stats = bank.stats();

@@ -165,7 +165,7 @@ impl DagAttention for CriticalPathAttention {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dag::{OperatorNode, OperatorType};
+    use crate::dag::OperatorNode;
 
     #[test]
     fn test_critical_path_attention() {

@@ -520,7 +520,7 @@ impl Stm32Offload for NullStm32 {
             Stm32Command::GateCheck { .. } => Ok(Stm32Response::GatePass(true)),
             Stm32Command::WatchdogPing { .. } => Ok(Stm32Response::WatchdogAck),
             Stm32Command::ScheduleReorder { mut job_priorities } => {
-                job_priorities.sort_by(|a, b| b.1.cmp(&a.1));
+                job_priorities.sort_by_key(|b| std::cmp::Reverse(b.1));
                 let order = job_priorities.iter().map(|(idx, _)| *idx).collect();
                 Ok(Stm32Response::ScheduleOrder(order))
             }

@@ -292,7 +292,7 @@ impl GraphMAEDecoder {
         let layers = (0..n)
             .map(|i| {
                 let out = if i == n - 1 { output_dim } else { hidden_dim };
-                Linear::new(if i == 0 { hidden_dim } else { hidden_dim }, out)
+                Linear::new(hidden_dim, out)
             })
             .collect();
         Self {

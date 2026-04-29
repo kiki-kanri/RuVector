@@ -3,6 +3,14 @@
 //! A system that behaves like a simple organism:
 //! - No global objective function
 //! - Only minimizes structural stress over time
+
+// Example code is illustrative; relax style lints that don't affect demonstration.
+#![allow(
+    dead_code,
+    private_interfaces,
+    clippy::new_without_default,
+    private_bounds
+)]
 //! - Appears calm most of the time
 //! - Spikes briefly when something meaningful happens
 //! - Learns only when instability crosses thresholds

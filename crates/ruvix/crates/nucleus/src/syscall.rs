@@ -10,8 +10,8 @@ use alloc::vec::Vec;
 
 use crate::{
     CapHandle, CapRights, Duration, GraphHandle, GraphMutation, MsgPriority, ProofToken,
-    QueueHandle, RegionHandle, RegionPolicy, Result, RvfComponentId, SensorDescriptor, TaskHandle,
-    TaskPriority, TimerSpec, VectorKey, VectorStoreHandle,
+    QueueHandle, RegionHandle, RegionPolicy, RvfComponentId, RvfMountHandle, SensorDescriptor,
+    TaskHandle, TaskPriority, TimerSpec, VectorKey, VectorStoreHandle,
 };
 
 /// All 12 syscalls defined in ADR-087 Section 3.1.
@@ -586,5 +586,3 @@ mod tests {
         }
     }
 }
-
-use crate::RvfMountHandle;

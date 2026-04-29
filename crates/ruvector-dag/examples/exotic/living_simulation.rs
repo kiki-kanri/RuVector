@@ -3,6 +3,9 @@
 //! Not simulations that predict outcomes.
 //! Simulations that maintain internal stability while being perturbed.
 //!
+
+// Example code is illustrative; relax style lints that don't affect demonstration.
+#![allow(unused_variables, clippy::new_without_default)]
 //! Examples:
 //! - Economic simulations that resist collapse and show where stress accumulates
 //! - Climate models that expose fragile boundaries rather than forecasts

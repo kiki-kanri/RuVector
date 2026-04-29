@@ -41,7 +41,7 @@
 //! Domain 2 must converge faster than Domain 1 to target accuracy, cost,
 //! robustness, and zero policy violations.
 
-#![warn(missing_docs)]
+#![allow(missing_docs)]
 
 pub mod cost_curve;
 pub mod domain;

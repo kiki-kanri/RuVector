@@ -126,11 +126,18 @@ pub struct UniformQuantizer {
 }
 
 impl UniformQuantizer {
-    /// Create a new uniform quantizer
+    /// Create a new uniform quantizer.
+    ///
+    /// The default scale is chosen to map symmetric `[-1, 1]` weights onto
+    /// the signed `bits`-bit grid; e.g. at 4 bits the half-range is 8 so
+    /// `scale = 1/8`. Calibrate with [`init_scale_from_weights`] before
+    /// quantizing weights with a different dynamic range.
     pub fn new(bits: u8, ste_variant: SteVariant) -> Self {
+        let half = 1u32 << bits.saturating_sub(1);
+        let scale = if half > 0 { 1.0 / (half as f32) } else { 1.0 };
         Self {
             bits,
-            scale: 1.0,
+            scale,
             ste_variant,
             symmetric: true,
         }

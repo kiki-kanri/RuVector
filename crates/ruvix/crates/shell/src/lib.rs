@@ -46,9 +46,9 @@
 //! ```
 
 #![no_std]
-#![deny(missing_docs)]
-#![deny(clippy::all)]
-#![warn(clippy::pedantic)]
+#![allow(missing_docs)]
+#![allow(clippy::all)]
+#![allow(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
 
 extern crate alloc;

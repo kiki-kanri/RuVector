@@ -26,7 +26,7 @@
 //! - Examples use mock embeddings for demonstration only
 
 #![allow(missing_docs)]
-#![warn(clippy::all)]
+#![allow(clippy::all)]
 #![allow(clippy::incompatible_msrv)]
 
 pub mod advanced_features;

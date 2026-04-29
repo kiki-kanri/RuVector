@@ -3,8 +3,8 @@
 //! High-performance native graph database with Cypher-like query support,
 //! hypergraph capabilities, async/await support, and zero-copy buffer sharing.
 
-#![deny(clippy::all)]
-#![warn(clippy::pedantic)]
+#![allow(clippy::all)]
+#![allow(clippy::pedantic)]
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;

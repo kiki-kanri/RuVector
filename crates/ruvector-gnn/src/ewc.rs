@@ -140,8 +140,8 @@ impl ElasticWeightConsolidation {
 
         let mut penalty = 0.0;
 
-        for i in 0..weights.len() {
-            let diff = weights[i] - self.anchor_weights[i];
+        for (i, &w) in weights.iter().enumerate() {
+            let diff = w - self.anchor_weights[i];
             penalty += self.fisher_diag[i] * diff * diff;
         }
 
@@ -174,8 +174,8 @@ impl ElasticWeightConsolidation {
 
         let mut grad = Vec::with_capacity(weights.len());
 
-        for i in 0..weights.len() {
-            let diff = weights[i] - self.anchor_weights[i];
+        for (i, &w) in weights.iter().enumerate() {
+            let diff = w - self.anchor_weights[i];
             grad.push(self.lambda * self.fisher_diag[i] * diff);
         }
 
@@ -267,7 +267,7 @@ mod tests {
         // Position 0: (1² + 2²) / 2 = 2.5
         // Position 1: (2² + 1²) / 2 = 2.5
         // Position 2: (3² + 1²) / 2 = 5.0
-        let expected = vec![2.5, 2.5, 5.0];
+        let expected = [2.5, 2.5, 5.0];
         assert_eq!(ewc.fisher_diag().len(), expected.len());
         for (actual, exp) in ewc.fisher_diag().iter().zip(expected.iter()) {
             assert!((actual - exp).abs() < 1e-6);

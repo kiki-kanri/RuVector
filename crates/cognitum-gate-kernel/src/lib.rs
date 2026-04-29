@@ -49,8 +49,8 @@
 //! ```
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![deny(unsafe_op_in_unsafe_fn)]
-#![warn(missing_docs)]
+#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(missing_docs)]
 #![allow(clippy::missing_safety_doc)]
 
 #[cfg(not(feature = "std"))]

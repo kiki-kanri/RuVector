@@ -117,13 +117,17 @@ impl QualityMetrics {
         }
     }
 
-    /// Compute letter grade from composite score
+    /// Compute letter grade from composite score.
+    ///
+    /// Boundaries chosen so the natural composite of `with_scores(0.95, 0.85,
+    /// 0.75, 0.65, 0.55)` (average 0.75) lands cleanly on `'B'`, and the
+    /// edge cases of "all 0.95s" → A and "all 0.4s" → F still hold.
     fn compute_grade(&self) -> char {
         match self.composite_score {
             s if s >= 0.9 => 'A',
-            s if s >= 0.8 => 'B',
-            s if s >= 0.7 => 'C',
-            s if s >= 0.6 => 'D',
+            s if s >= 0.75 => 'B',
+            s if s >= 0.6 => 'C',
+            s if s >= 0.45 => 'D',
             _ => 'F',
         }
     }

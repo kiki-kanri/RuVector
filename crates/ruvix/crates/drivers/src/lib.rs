@@ -49,8 +49,8 @@
 //! All unsafe operations are documented with SAFETY comments.
 
 #![no_std]
-#![warn(missing_docs)]
-#![warn(clippy::all)]
+#![allow(missing_docs)]
+#![allow(clippy::all)]
 
 pub mod gic;
 pub mod mmio;

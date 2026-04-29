@@ -280,7 +280,7 @@ impl AdapterManager {
         let mut cache = self.cache.write();
 
         // Sort by last accessed (oldest first)
-        cache.sort_by(|a, b| a.last_accessed.cmp(&b.last_accessed));
+        cache.sort_by_key(|a| a.last_accessed);
 
         let mut freed = 0;
         while freed < needed && !cache.is_empty() {

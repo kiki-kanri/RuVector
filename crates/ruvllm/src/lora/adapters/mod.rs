@@ -391,11 +391,16 @@ impl AdapterMetadata {
     }
 
     /// Update modification timestamp
+    ///
+    /// Records as milliseconds-since-epoch internally so two `touch()` calls
+    /// inside the same second still produce a strictly greater value.
     pub fn touch(&mut self) {
-        self.modified_at = std::time::SystemTime::now()
+        let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_secs();
+            .as_millis() as u64;
+        // Guarantee strict monotonicity even on coarse-resolution clocks.
+        self.modified_at = now_ms.max(self.modified_at + 1);
     }
 }
 

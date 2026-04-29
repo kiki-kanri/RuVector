@@ -1,7 +1,10 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use ruvector_graph::types::{EdgeId, NodeId, Properties, PropertyValue};
-use ruvector_graph::{Edge, GraphDB, Node, Label};
-use std::hint::black_box;
+// NodeId/EdgeId are type aliases for String in the current crate; benchmarks
+// migrated from a previous tuple-struct definition use raw strings directly.
+#![allow(unused_imports)]
+
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use ruvector_graph::types::{EdgeId, Label, NodeId, Properties, PropertyValue};
+use ruvector_graph::{Edge, GraphDB, Node};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,7 +30,7 @@ fn bench_node_insertion_single(c: &mut Criterion) {
                     );
                     props.insert("value".to_string(), PropertyValue::Integer(i as i64));
 
-                    let node_id = NodeId::from(format!("node_{}", i));
+                    let node_id = format!("node_{}", i);
                     let node = Node::new(node_id, vec![Label::new("Person")], props);
                     black_box(graph.create_node(node).unwrap());
                 }
@@ -58,7 +61,7 @@ fn bench_node_insertion_batch(c: &mut Criterion) {
                         );
                         props.insert("value".to_string(), PropertyValue::Integer(i as i64));
 
-                        let node_id = NodeId(format!("batch_node_{}", i));
+                        let node_id = format!("batch_node_{}", i);
                         let node = Node::new(node_id, vec![Label::new("Person")], props);
                         black_box(graph.create_node(node).unwrap());
                     }
@@ -91,8 +94,8 @@ fn bench_node_insertion_bulk(c: &mut Criterion) {
                             PropertyValue::String(format!("user_{}", i)),
                         );
 
-                        let node_id = NodeId(format!("bulk_user_{}", i));
-                        let node = Node::new(node_id, vec!["User".into()], props);
+                        let node_id = format!("bulk_user_{}", i);
+                        let node = Node::new(node_id, vec![Label::new("User")], props);
                         black_box(graph.create_node(node).unwrap());
                     }
                 });
@@ -113,7 +116,7 @@ fn bench_edge_creation(c: &mut Criterion) {
     for i in 0..1000 {
         let mut props = Properties::new();
         props.insert("id".to_string(), PropertyValue::Integer(i as i64));
-        let node_id = NodeId(format!("edge_test_node_{}", i));
+        let node_id = format!("edge_test_node_{}", i);
         let node = Node::new(node_id.clone(), vec![Label::new("Person")], props);
         graph.create_node(node).unwrap();
         node_ids.push(node_id);
@@ -135,7 +138,7 @@ fn bench_edge_creation(c: &mut Criterion) {
                         let mut props = Properties::new();
                         props.insert("weight".to_string(), PropertyValue::Float(i as f64));
 
-                        let edge_id = EdgeId(format!("edge_{}", i));
+                        let edge_id = format!("edge_{}", i);
                         let edge = Edge::new(
                             edge_id,
                             from.clone(),
@@ -163,7 +166,7 @@ fn bench_query_node_lookup(c: &mut Criterion) {
     for i in 0..10000 {
         let mut props = Properties::new();
         props.insert("id".to_string(), PropertyValue::Integer(i as i64));
-        let node_id = NodeId(format!("lookup_node_{}", i));
+        let node_id = format!("lookup_node_{}", i);
         let node = Node::new(node_id.clone(), vec![Label::new("Person")], props);
         graph.create_node(node).unwrap();
         node_ids.push(node_id);
@@ -194,7 +197,7 @@ fn bench_query_edge_lookup(c: &mut Criterion) {
     for i in 0..100 {
         let mut props = Properties::new();
         props.insert("id".to_string(), PropertyValue::Integer(i as i64));
-        let node_id = NodeId::from(format!("trav_node_{}", i));
+        let node_id = format!("trav_node_{}", i);
         let node = Node::new(node_id.clone(), vec![Label::new("Person")], props);
         graph.create_node(node).unwrap();
         node_ids.push(node_id);
@@ -204,7 +207,7 @@ fn bench_query_edge_lookup(c: &mut Criterion) {
     for i in 0..node_ids.len() {
         for j in 0..5 {
             let to_idx = (i + j + 1) % node_ids.len();
-            let edge_id = EdgeId(format!("trav_edge_{}_{}", i, j));
+            let edge_id = format!("trav_edge_{}_{}", i, j);
             let edge = Edge::new(
                 edge_id.clone(),
                 node_ids[i].clone(),
@@ -239,7 +242,7 @@ fn bench_query_get_by_label(c: &mut Criterion) {
     for i in 0..1000 {
         let mut props = Properties::new();
         props.insert("id".to_string(), PropertyValue::Integer(i as i64));
-        let node_id = NodeId(format!("label_node_{}", i));
+        let node_id = format!("label_node_{}", i);
 
         let label = if i % 3 == 0 {
             "Person"
@@ -249,7 +252,7 @@ fn bench_query_get_by_label(c: &mut Criterion) {
             "Location"
         };
 
-        let node = Node::new(node_id, vec![label.into()], props);
+        let node = Node::new(node_id, vec![Label::new(label)], props);
         graph.create_node(node).unwrap();
     }
 
@@ -282,7 +285,7 @@ fn bench_memory_usage(c: &mut Criterion) {
                         let graph = create_test_graph();
 
                         let start = std::time::Instant::now();
-                        for i in 0..*num_nodes {
+                        for i in 0..num_nodes {
                             let mut props = Properties::new();
                             props.insert("id".to_string(), PropertyValue::Integer(i as i64));
                             props.insert(
@@ -290,8 +293,8 @@ fn bench_memory_usage(c: &mut Criterion) {
                                 PropertyValue::String(format!("node_{}", i)),
                             );
 
-                            let node_id = NodeId(format!("mem_node_{}", i));
-                            let node = Node::new(node_id, vec!["TestNode".into()], props);
+                            let node_id = format!("mem_node_{}", i);
+                            let node = Node::new(node_id, vec![Label::new("TestNode")], props);
                             graph.create_node(node).unwrap();
                         }
                         total_duration += start.elapsed();

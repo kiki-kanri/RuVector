@@ -178,7 +178,7 @@ pub struct MechanismStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dag::{OperatorNode, OperatorType, QueryDag};
+    use crate::dag::{OperatorNode, QueryDag};
 
     // Mock mechanism for testing
     struct MockMechanism {
@@ -271,7 +271,7 @@ mod tests {
         let mut selector = AttentionSelector::new(mechanisms, SelectorConfig::default());
 
         let mut dag = QueryDag::new();
-        let node = OperatorNode::new(0, OperatorType::Scan);
+        let node = OperatorNode::seq_scan(0, "table");
         dag.add_node(node);
 
         let (scores, idx) = selector.forward(&dag).unwrap();

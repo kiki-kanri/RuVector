@@ -53,44 +53,40 @@ impl<'a> FilterEvaluator<'a> {
     pub fn matches(&self, payload: &Value, filter: &FilterExpression) -> bool {
         match filter {
             FilterExpression::Eq { field, value } => {
-                Self::get_field_value(payload, field).map_or(false, |v| v == value)
+                Self::get_field_value(payload, field).is_some_and(|v| v == value)
             }
             FilterExpression::Ne { field, value } => {
-                Self::get_field_value(payload, field).map_or(true, |v| v != value)
+                Self::get_field_value(payload, field).is_none_or(|v| v != value)
             }
             FilterExpression::Gt { field, value } => Self::get_field_value(payload, field)
-                .map_or(false, |v| {
+                .is_some_and(|v| {
                     Self::compare_values(v, value) == Some(std::cmp::Ordering::Greater)
                 }),
-            FilterExpression::Gte { field, value } => {
-                Self::get_field_value(payload, field).map_or(false, |v| {
+            FilterExpression::Gte { field, value } => Self::get_field_value(payload, field)
+                .is_some_and(|v| {
                     matches!(
                         Self::compare_values(v, value),
                         Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal)
                     )
-                })
-            }
-            FilterExpression::Lt { field, value } => Self::get_field_value(payload, field)
-                .map_or(false, |v| {
-                    Self::compare_values(v, value) == Some(std::cmp::Ordering::Less)
                 }),
-            FilterExpression::Lte { field, value } => {
-                Self::get_field_value(payload, field).map_or(false, |v| {
+            FilterExpression::Lt { field, value } => Self::get_field_value(payload, field)
+                .is_some_and(|v| Self::compare_values(v, value) == Some(std::cmp::Ordering::Less)),
+            FilterExpression::Lte { field, value } => Self::get_field_value(payload, field)
+                .is_some_and(|v| {
                     matches!(
                         Self::compare_values(v, value),
                         Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
                     )
-                })
-            }
+                }),
             FilterExpression::Range { field, gte, lte } => {
                 if let Some(v) = Self::get_field_value(payload, field) {
-                    let gte_match = gte.as_ref().map_or(true, |gte_val| {
+                    let gte_match = gte.as_ref().is_none_or(|gte_val| {
                         matches!(
                             Self::compare_values(v, gte_val),
                             Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal)
                         )
                     });
-                    let lte_match = lte.as_ref().map_or(true, |lte_val| {
+                    let lte_match = lte.as_ref().is_none_or(|lte_val| {
                         matches!(
                             Self::compare_values(v, lte_val),
                             Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
@@ -102,17 +98,17 @@ impl<'a> FilterEvaluator<'a> {
                 }
             }
             FilterExpression::In { field, values } => {
-                Self::get_field_value(payload, field).map_or(false, |v| values.contains(v))
+                Self::get_field_value(payload, field).is_some_and(|v| values.contains(v))
             }
             FilterExpression::Match { field, text } => Self::get_field_value(payload, field)
                 .and_then(|v| v.as_str())
-                .map_or(false, |s| s.to_lowercase().contains(&text.to_lowercase())),
+                .is_some_and(|s| s.to_lowercase().contains(&text.to_lowercase())),
             FilterExpression::And(filters) => filters.iter().all(|f| self.matches(payload, f)),
             FilterExpression::Or(filters) => filters.iter().any(|f| self.matches(payload, f)),
             FilterExpression::Not(filter) => !self.matches(payload, filter),
             FilterExpression::Exists { field } => Self::get_field_value(payload, field).is_some(),
             FilterExpression::IsNull { field } => {
-                Self::get_field_value(payload, field).map_or(true, |v| v.is_null())
+                Self::get_field_value(payload, field).is_none_or(|v| v.is_null())
             }
             _ => false, // Geo operations not supported in direct matching
         }

@@ -146,11 +146,9 @@ pub fn create_attestation(env: &crate::ProofEnvironment, proof_id: u32) -> Proof
     }
     let env_hash = siphash_256(&env_content);
 
-    let cache_rate = if stats.cache_hits + stats.cache_misses > 0 {
-        ((stats.cache_hits * 10000) / (stats.cache_hits + stats.cache_misses)) as u16
-    } else {
-        0
-    };
+    let cache_rate = (stats.cache_hits * 10000)
+        .checked_div(stats.cache_hits + stats.cache_misses)
+        .unwrap_or(0) as u16;
 
     ProofAttestation::new(
         proof_hash,

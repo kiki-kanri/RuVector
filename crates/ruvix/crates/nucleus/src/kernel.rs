@@ -24,7 +24,7 @@ use crate::{
     scheduler::{Scheduler, SchedulerConfig},
     syscall::{AttestPayload, Syscall, SyscallResult},
     vector_store::VectorStore,
-    witness_log::{WitnessLog, WitnessRecordKind},
+    witness_log::WitnessLog,
     CapHandle, CapRights, Duration, GraphHandle, GraphMutation, MsgPriority, ProofTier, ProofToken,
     QueueHandle, RegionPolicy, Result, RvfMountHandle, SensorDescriptor, SubscriptionHandle,
     TaskHandle, TaskPriority, TimerSpec, VectorKey, VectorStoreConfig, VectorStoreHandle,

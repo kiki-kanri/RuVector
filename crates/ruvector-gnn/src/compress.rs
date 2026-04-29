@@ -74,6 +74,7 @@ pub enum CompressedTensor {
 #[derive(Debug, Clone)]
 pub struct TensorCompress {
     /// Default compression parameters
+    #[allow(dead_code)]
     default_level: CompressionLevel,
 }
 
@@ -308,7 +309,7 @@ impl TensorCompress {
 
     fn compress_binary(&self, embedding: &[f32], threshold: f32) -> Result<CompressedTensor> {
         let dim = embedding.len();
-        let num_bytes = (dim + 7) / 8;
+        let num_bytes = dim.div_ceil(8);
         let mut bits = vec![0u8; num_bytes];
 
         for (i, &val) in embedding.iter().enumerate() {
@@ -401,7 +402,7 @@ impl TensorCompress {
     }
 
     fn decompress_binary(&self, bits: &[u8], _threshold: f32, dim: usize) -> Result<Vec<f32>> {
-        let expected_bytes = (dim + 7) / 8;
+        let expected_bytes = dim.div_ceil(8);
         if bits.len() != expected_bytes {
             return Err(GnnError::InvalidInput(format!(
                 "Dimension mismatch: expected {} bytes, got {}",

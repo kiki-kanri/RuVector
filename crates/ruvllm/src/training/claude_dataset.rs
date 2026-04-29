@@ -878,9 +878,15 @@ impl DatasetGenerator {
         result
     }
 
-    /// Get replacement options for template placeholders
-    fn get_template_replacements(&self) -> HashMap<&'static str, Vec<&'static str>> {
-        let mut map = HashMap::new();
+    /// Get replacement options for template placeholders.
+    ///
+    /// Returns a `BTreeMap` (sorted by key) instead of `HashMap` because
+    /// `fill_template` consumes the RNG once per placeholder, so the
+    /// iteration order has to be deterministic for seeded reproducibility.
+    fn get_template_replacements(
+        &self,
+    ) -> std::collections::BTreeMap<&'static str, Vec<&'static str>> {
+        let mut map = std::collections::BTreeMap::new();
 
         map.insert(
             "language",

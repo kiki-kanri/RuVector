@@ -88,6 +88,9 @@ claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
 
+# Agent worktree directories (runtime-only, per-agent isolation)
+.claude/worktrees/
+
 # Native intelligence database (binary)
 .claude/intelligence/data/intelligence.db
 

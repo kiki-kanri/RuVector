@@ -12,9 +12,7 @@ extern crate alloc;
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
-use crate::{
-    GraphHandle, ProofAttestation, ProofToken, Result, RvfMountHandle, VectorKey, VectorStoreHandle,
-};
+use crate::{GraphHandle, ProofAttestation, Result, RvfMountHandle, VectorKey, VectorStoreHandle};
 use ruvix_types::KernelError;
 
 /// Maximum records in the witness log (for no_std).

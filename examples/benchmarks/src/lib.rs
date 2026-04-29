@@ -14,6 +14,32 @@
 //! - Cognitive capability assessment frameworks
 //! - lean-agentic type theory for verified reasoning
 
+// Benchmark library: relax pedantic style lints that don't affect benchmark fidelity.
+#![allow(
+    clippy::collapsible_if,
+    clippy::collapsible_match,
+    clippy::manual_clamp,
+    clippy::too_many_arguments,
+    clippy::field_reassign_with_default,
+    clippy::derivable_impls,
+    clippy::needless_range_loop,
+    clippy::explicit_counter_loop,
+    clippy::redundant_closure,
+    clippy::manual_range_contains,
+    clippy::manual_is_multiple_of,
+    clippy::assign_op_pattern,
+    clippy::new_without_default,
+    clippy::unnecessary_sort_by,
+    clippy::doc_lazy_continuation,
+    clippy::empty_line_after_doc_comments,
+    clippy::unnecessary_unwrap,
+    dead_code,
+    unused_imports,
+    unused_variables,
+    unused_mut,
+    unused_assignments
+)]
+
 pub mod acceptance_test;
 pub mod agi_contract;
 pub mod intelligence_metrics;

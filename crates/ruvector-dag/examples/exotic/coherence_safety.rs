@@ -3,6 +3,9 @@
 //! Forget guardrails. Forget policies.
 //!
 //! Systems that shut themselves down or degrade capability
+
+// Example code is illustrative; relax style lints that don't affect demonstration.
+#![allow(dead_code, clippy::new_without_default, clippy::manual_clamp)]
 //! when internal coherence drops.
 //!
 //! Examples:

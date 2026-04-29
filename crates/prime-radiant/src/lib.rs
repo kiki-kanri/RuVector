@@ -140,12 +140,11 @@
 //! 2. ADR-014: Coherence Engine Architecture
 //! 3. Robinson, M. (2014). "Topological Signal Processing."
 
+// Research-tier crate, doc churn deferred per workspace cleanup pass.
+// Lint policy lives in Cargo.toml `[lints]` so it applies uniformly to lib,
+// tests, benches, and examples. `clippy::all` correctness/suspicious lints
+// remain enabled there; only style/scaffolding lints are downgraded.
 #![deny(unsafe_code)]
-#![warn(missing_docs)]
-#![warn(clippy::all)]
-#![warn(clippy::pedantic)]
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::must_use_candidate)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 // ============================================================================

@@ -183,7 +183,7 @@ impl Default for HealingOrchestrator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::healing::{Anomaly, AnomalyType, IndexRebalanceStrategy};
+    use crate::healing::IndexRebalanceStrategy;
 
     #[test]
     fn test_orchestrator_creation() {

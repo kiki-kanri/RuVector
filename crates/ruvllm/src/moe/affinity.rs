@@ -344,7 +344,7 @@ impl ExpertAffinity {
     pub fn top_k_by_frequency(&self, k: usize) -> Vec<ExpertId> {
         let mut indexed: Vec<(ExpertId, u64)> =
             self.total_activations.iter().copied().enumerate().collect();
-        indexed.sort_by(|a, b| b.1.cmp(&a.1));
+        indexed.sort_by_key(|b| std::cmp::Reverse(b.1));
         indexed.into_iter().take(k).map(|(id, _)| id).collect()
     }
 

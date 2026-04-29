@@ -144,9 +144,7 @@ mod placeholder {
             }
 
             let key_hash = Self::sha256(&sk.0[32..64]);
-            for i in 0..32 {
-                sig[i + 32] = key_hash[i];
-            }
+            sig[32..64].copy_from_slice(&key_hash);
 
             Ok(Signature(sig))
         }

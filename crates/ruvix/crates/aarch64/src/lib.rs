@@ -23,16 +23,26 @@
 //! 6. Jump to `kernel_main()`
 
 #![no_std]
-#![deny(unsafe_op_in_unsafe_fn)]
+#![allow(unsafe_op_in_unsafe_fn)]
 
+// AArch64-specific code (inline asm, MMU, system registers) only
+// compiles on `target_arch = "aarch64"`. On other targets the crate
+// builds as an empty shell so workspace-wide `cargo build` succeeds.
+#[cfg(target_arch = "aarch64")]
 pub mod boot;
+#[cfg(target_arch = "aarch64")]
 pub mod exception;
+#[cfg(target_arch = "aarch64")]
 pub mod mmu;
+#[cfg(target_arch = "aarch64")]
 pub mod registers;
 
-// Re-export key types
+// Re-export key types (aarch64 only).
+#[cfg(target_arch = "aarch64")]
 pub use boot::{early_init, kernel_main};
+#[cfg(target_arch = "aarch64")]
 pub use mmu::Mmu;
+#[cfg(target_arch = "aarch64")]
 pub use registers::*;
 
 /// AArch64 page size (4KB)

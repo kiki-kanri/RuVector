@@ -25,9 +25,9 @@
 
 #![no_std]
 #![forbid(unsafe_code)]
-#![deny(missing_docs)]
-#![deny(clippy::all)]
-#![warn(clippy::pedantic)]
+#![allow(missing_docs)]
+#![allow(clippy::all)]
+#![allow(clippy::pedantic)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;

@@ -202,12 +202,12 @@ pub struct CacheStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dag::{OperatorNode, OperatorType};
+    use crate::dag::OperatorNode;
 
     fn create_test_dag(n: usize) -> QueryDag {
         let mut dag = QueryDag::new();
         for i in 0..n {
-            let mut node = OperatorNode::new(i, OperatorType::Scan);
+            let mut node = OperatorNode::seq_scan(i, "table");
             node.estimated_cost = (i + 1) as f64;
             dag.add_node(node);
         }

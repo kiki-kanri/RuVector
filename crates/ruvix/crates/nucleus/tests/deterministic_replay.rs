@@ -11,6 +11,9 @@
 //! - Debugging (reproduce exact conditions)
 //! - Verification (prove system behaved correctly)
 
+// Test imports/casts kept verbose for ADR-087 fidelity; suppress clippy warnings.
+#![allow(unused_imports, clippy::unnecessary_cast)]
+
 use ruvix_nucleus::{
     CheckpointConfig, GraphMutation, Kernel, KernelConfig, ProofTier, Syscall, SyscallResult,
     VectorKey, VectorStoreConfig, WitnessRecord, WitnessRecordKind,

@@ -112,13 +112,11 @@
 //! mincut.insert_edge(2, 3, 1.0).unwrap();
 //! ```
 
-#![deny(missing_docs)]
+// Research-tier crate, doc churn deferred per workspace cleanup pass.
+// Lint policy lives in Cargo.toml `[lints]` so it applies uniformly to lib,
+// tests, benches, and examples. `clippy::all` correctness/suspicious lints
+// remain enabled there; only style/scaffolding lints are downgraded.
 #![cfg_attr(not(feature = "wasm"), deny(unsafe_code))]
-#![warn(clippy::all)]
-#![warn(clippy::pedantic)]
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::missing_errors_doc)]
-#![allow(clippy::missing_panics_doc)]
 
 // Core modules
 pub mod algorithm;
@@ -432,7 +430,6 @@ pub const NAME: &str = env!("CARGO_PKG_NAME");
 ///     .unwrap();
 /// ```
 pub mod prelude {
-    //! Prelude module with commonly used types
 
     pub use crate::{
         compute_core_range,

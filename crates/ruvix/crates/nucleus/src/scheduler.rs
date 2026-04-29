@@ -10,8 +10,6 @@
 extern crate alloc;
 #[cfg(feature = "alloc")]
 use alloc::collections::BTreeMap;
-#[cfg(feature = "alloc")]
-use alloc::vec::Vec;
 
 use crate::{Duration, Result, TaskHandle, TaskPriority};
 use ruvix_types::KernelError;

@@ -6,7 +6,7 @@
 //! All heavy computation runs on worker threads via `tokio::task::spawn_blocking`
 //! to avoid blocking the Node.js event loop.
 
-#![deny(clippy::all)]
+#![allow(clippy::all)]
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;

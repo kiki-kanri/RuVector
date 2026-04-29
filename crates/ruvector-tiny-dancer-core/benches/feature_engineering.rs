@@ -8,7 +8,7 @@ use std::collections::HashMap;
 fn bench_cosine_similarity(c: &mut Criterion) {
     let engineer = FeatureEngineer::new();
 
-    c.bench_function("cosine_similarity_384d", |b| {
+    c.bench_function("cosine_similarity_384d", |bencher| {
         let a = vec![0.5; 384];
         let b = vec![0.4; 384];
 
@@ -21,7 +21,7 @@ fn bench_cosine_similarity(c: &mut Criterion) {
             success_rate: 0.9,
         };
 
-        b.iter(|| {
+        bencher.iter(|| {
             engineer
                 .extract_features(black_box(&a), black_box(&candidate), None)
                 .unwrap()
@@ -60,7 +60,7 @@ fn bench_feature_weights(c: &mut Criterion) {
 
     for (name, config) in configs {
         group.bench_function(name, |b| {
-            let engineer = FeatureEngineer::with_config(config);
+            let engineer = FeatureEngineer::with_config(config.clone());
             let query = vec![0.5; 128];
             let candidate = Candidate {
                 id: "test".to_string(),

@@ -61,7 +61,7 @@ impl TemporalBTSPAttention {
         *trace = *trace * self.config.eligibility_decay + signal * self.config.learning_rate;
 
         // Clamp to [0, 1]
-        *trace = trace.max(0.0).min(1.0);
+        *trace = trace.clamp(0.0, 1.0);
     }
 
     /// Check if node is in plateau state
@@ -106,7 +106,7 @@ impl TemporalBTSPAttention {
 
     /// Apply plateau boosting
     fn apply_plateau_boost(&self, scores: &mut [f32]) {
-        for (node_id, _) in &self.last_plateau {
+        for node_id in self.last_plateau.keys() {
             if *node_id < scores.len() && self.is_plateau(*node_id) {
                 // Strong boost for nodes in plateau state
                 scores[*node_id] *= 1.5;
@@ -239,7 +239,7 @@ impl DagAttentionMechanism for TemporalBTSPAttention {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dag::{OperatorNode, OperatorType};
+    use crate::dag::OperatorNode;
     use std::thread::sleep;
     use std::time::Duration;
 
@@ -257,8 +257,10 @@ mod tests {
 
     #[test]
     fn test_plateau_state() {
-        let mut config = TemporalBTSPConfig::default();
-        config.plateau_duration_ms = 100;
+        let config = TemporalBTSPConfig {
+            plateau_duration_ms: 100,
+            ..TemporalBTSPConfig::default()
+        };
         let mut attention = TemporalBTSPAttention::new(config);
 
         attention.trigger_plateau(0);
@@ -275,7 +277,7 @@ mod tests {
 
         let mut dag = QueryDag::new();
         for i in 0..3 {
-            let mut node = OperatorNode::new(i, OperatorType::Scan);
+            let mut node = OperatorNode::seq_scan(i, "table");
             node.estimated_cost = 10.0;
             dag.add_node(node);
         }

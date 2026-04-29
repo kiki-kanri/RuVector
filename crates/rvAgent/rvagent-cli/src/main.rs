@@ -4,6 +4,7 @@
 //! initializes tracing, and dispatches to the appropriate run mode
 //! (interactive TUI, single-prompt, or session management).
 
+mod a2a;
 mod app;
 mod display;
 mod mcp;
@@ -60,6 +61,8 @@ enum Commands {
         #[command(subcommand)]
         action: SessionAction,
     },
+    /// A2A (Agent-to-Agent) protocol operations: serve, discover, send-task.
+    A2a(a2a::A2aCommand),
 }
 
 // ---------------------------------------------------------------------------
@@ -75,13 +78,14 @@ async fn main() -> Result<()> {
         let _ = dotenvy::from_filename(".env.local");
     }
 
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
 
     // Determine if we're running in interactive TUI mode.
     // In TUI mode, we suppress console tracing to avoid corrupting the display.
     let is_tui_mode = match &cli.command {
         Some(Commands::Session { .. }) => false,
         Some(Commands::Run { .. }) => false,
+        Some(Commands::A2a(_)) => false,
         Some(Commands::Chat) | None => cli.prompt.is_none(),
     };
 
@@ -110,6 +114,14 @@ async fn main() -> Result<()> {
         Some(Commands::Run { prompt }) => {
             let mut app = App::new(&cli.model, &cwd, cli.resume.as_deref())?;
             app.run_once(prompt).await?;
+        }
+
+        // A2A protocol subcommands.
+        Some(Commands::A2a(_)) => {
+            // Take ownership so we don't need Clone on the inner clap types.
+            if let Some(Commands::A2a(cmd)) = cli.command.take() {
+                a2a::run(cmd).await?;
+            }
         }
 
         // Interactive TUI chat (default when no sub-command given).

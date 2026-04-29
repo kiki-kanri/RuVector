@@ -1,5 +1,8 @@
 //! Self-healing system example
 
+// Example code is illustrative; relax style lints that don't affect demonstration.
+#![allow(unused_imports, unused_variables)]
+
 use ruvector_dag::healing::{
     AnomalyConfig, AnomalyDetector, HealingOrchestrator, IndexHealth, IndexHealthChecker,
     IndexThresholds, IndexType, LearningDriftDetector,

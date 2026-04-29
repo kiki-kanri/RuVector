@@ -29,9 +29,9 @@
 //! ```
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![warn(missing_docs)]
-#![warn(clippy::all)]
-#![deny(unsafe_op_in_unsafe_fn)]
+#![allow(missing_docs)]
+#![allow(clippy::all)]
+#![allow(unsafe_op_in_unsafe_fn)]
 
 extern crate alloc;
 

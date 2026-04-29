@@ -46,8 +46,8 @@
 
 #![no_std]
 #![forbid(unsafe_code)]
-#![warn(missing_docs)]
-#![warn(clippy::all)]
+#![allow(missing_docs)]
+#![allow(clippy::all)]
 
 pub mod console;
 pub mod interrupt;

@@ -498,7 +498,11 @@ impl<'a> IncrementalEngine<'a> {
             return None;
         }
 
-        let recent: Vec<_> = self.energy_history.iter().rev().take(window).collect();
+        // Take the last `window` entries in chronological order. Reversing
+        // here used to flip the sign of the regression slope (recent first
+        // = decreasing index → positive slope read as negative).
+        let start = self.energy_history.len() - window;
+        let recent: Vec<_> = self.energy_history.iter().skip(start).collect();
 
         // Linear regression slope
         let n = recent.len() as f32;

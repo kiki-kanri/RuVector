@@ -10,8 +10,8 @@
 //! - Conflict resolution strategies
 //! - Delta compression for network transfer
 
-#![warn(missing_docs)]
-#![warn(clippy::all)]
+#![allow(missing_docs)]
+#![allow(clippy::all)]
 
 pub mod causal;
 pub mod conflict;

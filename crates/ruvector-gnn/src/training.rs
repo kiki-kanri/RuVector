@@ -119,7 +119,7 @@ impl Optimizer {
                 v,
                 t,
             ),
-            _ => return Err(GnnError::invalid_input("Optimizer type and state mismatch")),
+            _ => Err(GnnError::invalid_input("Optimizer type and state mismatch")),
         }
     }
 
@@ -187,7 +187,7 @@ impl Optimizer {
 
         // Increment timestep
         *t += 1;
-        let timestep = *t as f32;
+        let _timestep = *t as f32;
 
         if let (Some(m_buf), Some(v_buf)) = (m, v) {
             // Update biased first moment estimate

@@ -431,7 +431,7 @@ impl DiversityAnalyzer {
         }
 
         // Sort by priority (higher first)
-        suggestions.sort_by(|a, b| b.priority.cmp(&a.priority));
+        suggestions.sort_by_key(|b| std::cmp::Reverse(b.priority));
 
         suggestions
     }

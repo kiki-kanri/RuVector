@@ -107,8 +107,8 @@
 //! - Safari 11+
 //! - Edge 16+
 
-#![warn(missing_docs)]
-#![warn(clippy::all)]
+#![allow(missing_docs)]
+#![allow(clippy::all)]
 
 use wasm_bindgen::prelude::*;
 

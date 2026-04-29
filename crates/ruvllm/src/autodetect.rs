@@ -284,15 +284,8 @@ impl CpuFeatures {
     fn detect_avx2_runtime() -> bool {
         #[cfg(all(target_arch = "x86_64", not(target_feature = "avx2")))]
         {
-            // Use is_x86_feature_detected! macro if available
-            #[cfg(feature = "std")]
-            {
-                std::arch::is_x86_feature_detected!("avx2")
-            }
-            #[cfg(not(feature = "std"))]
-            {
-                false
-            }
+            // ruvllm always links std; no `feature = "std"` gate needed.
+            std::arch::is_x86_feature_detected!("avx2")
         }
         #[cfg(target_feature = "avx2")]
         {
@@ -305,14 +298,7 @@ impl CpuFeatures {
     fn detect_sse42_runtime() -> bool {
         #[cfg(all(target_arch = "x86_64", not(target_feature = "sse4.2")))]
         {
-            #[cfg(feature = "std")]
-            {
-                std::arch::is_x86_feature_detected!("sse4.2")
-            }
-            #[cfg(not(feature = "std"))]
-            {
-                false
-            }
+            std::arch::is_x86_feature_detected!("sse4.2")
         }
         #[cfg(target_feature = "sse4.2")]
         {

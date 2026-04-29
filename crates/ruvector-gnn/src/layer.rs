@@ -5,7 +5,6 @@
 
 use crate::error::GnnError;
 use ndarray::{Array1, Array2, ArrayView1};
-use rand::Rng;
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
 

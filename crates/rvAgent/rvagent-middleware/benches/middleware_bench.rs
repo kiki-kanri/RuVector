@@ -31,8 +31,10 @@ fn bench_full_pipeline(c: &mut Criterion) {
         enable_witness: true,
         enable_sona: false,
         enable_hnsw: false,
+        enable_unicode_security: false,
         sona_config: None,
         hnsw_config: None,
+        unicode_security_config: None,
     };
     let pipeline = build_default_pipeline(&config);
     let handler = NoOpHandler;
@@ -114,8 +116,10 @@ fn bench_pipeline_modify_request(c: &mut Criterion) {
         enable_witness: false,
         enable_sona: false,
         enable_hnsw: false,
+        enable_unicode_security: false,
         sona_config: None,
         hnsw_config: None,
+        unicode_security_config: None,
     };
     let pipeline = build_default_pipeline(&config);
 

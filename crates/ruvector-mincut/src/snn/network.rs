@@ -398,10 +398,8 @@ impl SpikingNetwork {
         for weights in &mut self.feedforward_weights {
             weights.apply_reward(reward);
         }
-        for weights in &mut self.recurrent_weights {
-            if let Some(w) = weights {
-                w.apply_reward(reward);
-            }
+        for w in self.recurrent_weights.iter_mut().flatten() {
+            w.apply_reward(reward);
         }
     }
 

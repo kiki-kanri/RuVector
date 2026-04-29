@@ -304,7 +304,7 @@ fn bench_adam_optimizer(c: &mut Criterion) {
 
             b.iter(|| {
                 optimizer.step(&mut params, &gradients);
-                black_box(&params)
+                black_box(params[0])
             });
         });
     }

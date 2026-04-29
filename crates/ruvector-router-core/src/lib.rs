@@ -9,8 +9,8 @@
 //! - SIMD-optimized distance calculations
 //! - AgenticDB API compatibility
 
-#![deny(unsafe_op_in_unsafe_fn)]
-#![warn(missing_docs, rustdoc::broken_intra_doc_links)]
+#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(missing_docs)]
 
 pub mod distance;
 pub mod error;

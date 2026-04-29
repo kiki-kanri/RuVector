@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use router_core::{DistanceMetric, SearchQuery, VectorDB, VectorEntry};
+use ruvector_router_core::{DistanceMetric, SearchQuery, VectorDB, VectorEntry};
 use std::collections::HashMap;
 use tempfile::tempdir;
 
@@ -81,7 +81,7 @@ fn bench_search(c: &mut Criterion) {
 }
 
 fn bench_distance_calculations(c: &mut Criterion) {
-    use router_core::distance::*;
+    use ruvector_router_core::distance::*;
 
     let a = vec![0.5; 384];
     let b = vec![0.6; 384];

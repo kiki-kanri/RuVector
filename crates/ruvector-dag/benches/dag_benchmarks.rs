@@ -1,6 +1,9 @@
+// Bench code intentionally exercises broad APIs; suppress benchmark-only clippy warnings.
+#![allow(unused_imports, clippy::needless_range_loop)]
+
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use ruvector_dag::attention::*;
-use ruvector_dag::dag::{OperatorNode, OperatorType, QueryDag};
+use ruvector_dag::dag::{DagDeserializer, DagSerializer, OperatorNode, OperatorType, QueryDag};
 use ruvector_dag::sona::*;
 
 fn create_dag(size: usize) -> QueryDag {
@@ -33,13 +36,13 @@ fn create_complex_dag(size: usize) -> QueryDag {
             },
             1 => OperatorType::HnswScan {
                 index: format!("idx{}", i),
-                dim: 128,
+                ef_search: 128,
             },
             2 => OperatorType::HashJoin {
-                key: format!("key{}", i),
+                hash_key: format!("key{}", i),
             },
             _ => OperatorType::Filter {
-                condition: format!("col{} > {}", i, i * 10),
+                predicate: format!("col{} > {}", i, i * 10),
             },
         };
         dag.add_node(OperatorNode::new(i, op_type));
@@ -101,14 +104,12 @@ fn bench_attention(c: &mut Criterion) {
 fn bench_attention_cache(c: &mut Criterion) {
     let mut group = c.benchmark_group("attention_cache");
 
-    let mut cache = AttentionCache::new(100);
+    let mut cache = AttentionCache::new(CacheConfig::default());
     let dag = create_dag(50);
 
     // Pre-populate cache
-    let mut scores = std::collections::HashMap::new();
-    for i in 0..50 {
-        scores.insert(i, i as f32 / 50.0);
-    }
+    let scores_vec: Vec<f32> = (0..50).map(|i| i as f32 / 50.0).collect();
+    let scores = AttentionScoresV2::new(scores_vec);
     cache.insert(&dag, "test", scores.clone());
 
     group.bench_function("cache_hit", |b| b.iter(|| cache.get(&dag, "test")));

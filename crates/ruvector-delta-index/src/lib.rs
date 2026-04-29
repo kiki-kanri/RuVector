@@ -30,8 +30,8 @@
 //! let results = index.search(&query, 10);
 //! ```
 
-#![warn(missing_docs)]
-#![warn(clippy::all)]
+#![allow(missing_docs)]
+#![allow(clippy::all)]
 
 pub mod error;
 pub mod incremental;

@@ -43,8 +43,8 @@
 //! - `coherence`: Enable coherence scoring
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![deny(unsafe_op_in_unsafe_fn)]
-#![warn(missing_docs)]
+#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(missing_docs)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
