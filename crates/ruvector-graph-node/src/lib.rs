@@ -25,7 +25,12 @@ mod types;
 
 pub use streaming::*;
 pub use transactions::*;
-pub use types::*;
+pub use types::{
+    JsBatchInsert, JsBatchResult, JsDeleteNodeOptions, JsDeleteNodeResult, JsDeleteResult,
+    JsDistanceMetric, JsEdge, JsEdgeResult, JsGraphOptions, JsGraphStats, JsHyperedge,
+    JsHyperedgeQuery, JsHyperedgeResult, JsNode, JsNodeResult, JsQueryResult,
+    JsTemporalGranularity, JsTemporalHyperedge,
+};
 
 /// Graph database for complex relationship queries
 #[napi]
@@ -504,6 +509,125 @@ impl GraphDatabase {
             }
 
             Ok::<JsBatchResult, Error>(JsBatchResult { node_ids, edge_ids })
+        })
+        .await
+        .map_err(|e| Error::from_reason(format!("Task failed: {}", e)))?
+    }
+
+    /// Delete a node and optionally cascade to its incident hyperedges
+    ///
+    /// # Example
+    /// ```javascript
+    /// const result = await db.deleteNode('node1', { cascade: true });
+    /// console.log(`Deleted: ${result.deletedNode}, edges removed: ${result.deletedEdges}`);
+    /// ```
+    #[napi]
+    pub async fn delete_node(
+        &self,
+        id: String,
+        opts: Option<JsDeleteNodeOptions>,
+    ) -> Result<JsDeleteNodeResult> {
+        let hypergraph = self.hypergraph.clone();
+        let graph_db = self.graph_db.clone();
+        let storage = self.storage.clone();
+        let cascade = opts.and_then(|o| o.cascade).unwrap_or(false);
+
+        tokio::task::spawn_blocking(move || {
+            let deleted_edges = {
+                let mut hg = hypergraph.write().expect("RwLock poisoned");
+                hg.remove_entity(&id, cascade) as u32
+            };
+
+            let deleted_node = {
+                let gdb = graph_db.read().expect("RwLock poisoned");
+                gdb.delete_node(&id)
+                    .map_err(|e| Error::from_reason(format!("Failed to delete node: {}", e)))?
+            };
+
+            if deleted_node {
+                if let Some(ref storage_arc) = storage {
+                    let sg = storage_arc.write().expect("Storage RwLock poisoned");
+                    sg.delete_node(&id)
+                        .map_err(|e| Error::from_reason(format!("Storage delete failed: {}", e)))?;
+                }
+            }
+
+            Ok::<JsDeleteNodeResult, Error>(JsDeleteNodeResult {
+                deleted_node,
+                deleted_edges,
+            })
+        })
+        .await
+        .map_err(|e| Error::from_reason(format!("Task failed: {}", e)))?
+    }
+
+    /// Delete an edge by ID
+    ///
+    /// # Example
+    /// ```javascript
+    /// const result = await db.deleteEdge('edge-id');
+    /// console.log(`Deleted: ${result.deleted}`);
+    /// ```
+    #[napi]
+    pub async fn delete_edge(&self, id: String) -> Result<JsDeleteResult> {
+        let graph_db = self.graph_db.clone();
+        let storage = self.storage.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let deleted = {
+                let gdb = graph_db.read().expect("RwLock poisoned");
+                gdb.delete_edge(&id)
+                    .map_err(|e| Error::from_reason(format!("Failed to delete edge: {}", e)))?
+            };
+
+            if deleted {
+                if let Some(ref storage_arc) = storage {
+                    let sg = storage_arc.write().expect("Storage RwLock poisoned");
+                    sg.delete_edge(&id)
+                        .map_err(|e| Error::from_reason(format!("Storage delete failed: {}", e)))?;
+                }
+            }
+
+            Ok::<JsDeleteResult, Error>(JsDeleteResult { deleted })
+        })
+        .await
+        .map_err(|e| Error::from_reason(format!("Task failed: {}", e)))?
+    }
+
+    /// Delete a hyperedge by ID
+    ///
+    /// # Example
+    /// ```javascript
+    /// const result = await db.deleteHyperedge('hyperedge-id');
+    /// console.log(`Deleted: ${result.deleted}`);
+    /// ```
+    #[napi]
+    pub async fn delete_hyperedge(&self, id: String) -> Result<JsDeleteResult> {
+        let hypergraph = self.hypergraph.clone();
+        let graph_db = self.graph_db.clone();
+        let storage = self.storage.clone();
+
+        tokio::task::spawn_blocking(move || {
+            {
+                let mut hg = hypergraph.write().expect("RwLock poisoned");
+                hg.remove_hyperedge(&id);
+            }
+
+            let deleted = {
+                let gdb = graph_db.read().expect("RwLock poisoned");
+                gdb.delete_hyperedge(&id)
+                    .map_err(|e| Error::from_reason(format!("Failed to delete hyperedge: {}", e)))?
+            };
+
+            if deleted {
+                if let Some(ref storage_arc) = storage {
+                    let sg = storage_arc.write().expect("Storage RwLock poisoned");
+                    sg.delete_hyperedge(&id)
+                        .map_err(|e| Error::from_reason(format!("Storage delete failed: {}", e)))?;
+                }
+            }
+
+            Ok::<JsDeleteResult, Error>(JsDeleteResult { deleted })
         })
         .await
         .map_err(|e| Error::from_reason(format!("Task failed: {}", e)))?

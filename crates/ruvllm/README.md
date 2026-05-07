@@ -86,6 +86,17 @@ Or install the npm package:
 npm install @ruvector/ruvllm
 ```
 
+## What's New in v2.6
+
+| Feature | Description | Benefit |
+|---------|-------------|---------|
+| **Sparse Attention Kernel** | Subquadratic O(N log N) attention via local window + log-stride + landmarks | 29× fewer edge comparisons at seq=8192 vs dense |
+| **Hailo-10H Edge Inference** | GQA/MQA support fits Mistral-7B KV cache in 2.1 GB | Runs on Raspberry Pi 5 + AI HAT+ cluster |
+| **KV Cache Incremental Decode** | `decode_step()` — O(log T) per token instead of O(T log T) | Sustained generation on memory-constrained edge nodes |
+| **Zero Runtime Deps** | `ruvllm_sparse_attention` has no runtime dependencies | Minimal binary footprint for embedded / WASM targets |
+
+See [`ruvllm_sparse_attention`](../ruvllm_sparse_attention/README.md) for the full kernel documentation (ADR-183 – ADR-190).
+
 ## What's New in v2.5
 
 | Feature | Description | Benefit |
@@ -133,6 +144,7 @@ npm install @ruvector/ruvllm
 | **Core ML** | Apple Silicon efficiency | Apple Neural Engine (38 TOPS) |
 | **Hybrid Pipeline** | Maximum throughput on Mac | GPU for attention, ANE for MLP |
 | **mistral-rs** | Production serving (10-100 users) | PagedAttention, X-LoRA, ISQ |
+| **Hailo-10H** | Pi 5 + AI HAT+ cluster | Sparse O(N log N) attention, GQA, KV cache decode |
 
 ### Feature Flags
 
@@ -841,6 +853,42 @@ match backend.generate(prompt, params) {
     Err(e) => eprintln!("Error: {}", e),
 }
 ```
+
+## Sparse Attention — Edge / Hailo-10H
+
+`ruvllm_sparse_attention` is the companion crate that provides the subquadratic attention kernel used for edge inference on the cognitum Pi 5 cluster. It implements ADR-183 through ADR-190 and ships as a standalone zero-runtime-dep library.
+
+```toml
+[dependencies]
+ruvllm_sparse_attention = "2.2"
+```
+
+```rust
+use ruvllm_sparse_attention::{
+    SubquadraticSparseAttention, SparseAttentionConfig, KvCache, Tensor3, AttentionBackend,
+};
+
+// GQA prefill — Mistral-7B (32 Q heads, 8 KV heads)
+let attn = SubquadraticSparseAttention::new(SparseAttentionConfig::default()).unwrap();
+let q = Tensor3::zeros(512, 32, 128);
+let k = Tensor3::zeros(512, 8, 128);  // 4× smaller KV cache
+let v = Tensor3::zeros(512, 8, 128);
+let out = attn.forward_auto(&q, &k, &v).unwrap();  // dispatches MHA or GQA automatically
+
+// Incremental decode — O(log T) per token
+let mut cache = KvCache::new(4096, 8, 128);
+cache.append(&Tensor3::zeros(1, 8, 128), &Tensor3::zeros(1, 8, 128));
+let out = attn.decode_step(&Tensor3::zeros(1, 32, 128), &cache).unwrap();
+```
+
+| seq | x86-64 | Pi 5 Cortex-A76 | vs dense |
+|-----|--------|-----------------|---------|
+| 512 | 13.1 ms | 85.8 ms | 2.2× |
+| 1024 | 28.4 ms | 190.5 ms | 4.0× |
+| 2048 | 60.1 ms | 401.0 ms | 7.7× |
+| 4096 | 126.5 ms | 836.2 ms | 15.0× |
+
+Validated: 17/17 tests on all 4 cognitum cluster nodes (cognitum-v0/v1/cluster-2/cluster-3). See the [kernel README](../ruvllm_sparse_attention/README.md) for full documentation.
 
 ## npm Package
 

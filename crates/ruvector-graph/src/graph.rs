@@ -355,6 +355,36 @@ impl GraphDB {
             .collect()
     }
 
+    /// Delete a hyperedge by ID
+    pub fn delete_hyperedge(&self, id: &HyperedgeId) -> Result<bool> {
+        if let Some((_, hyperedge)) = self.hyperedges.remove(id) {
+            self.hyperedge_node_index.remove_hyperedge(&hyperedge);
+
+            #[cfg(feature = "storage")]
+            if let Some(storage) = &self.storage {
+                storage.delete_hyperedge(id)?;
+            }
+
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Delete all hyperedges that contain a given node
+    pub fn delete_hyperedges_by_node(&self, node_id: &NodeId) -> Result<usize> {
+        let ids: Vec<HyperedgeId> = self
+            .hyperedge_node_index
+            .get_hyperedges_by_node(node_id);
+        let mut deleted = 0;
+        for id in &ids {
+            if self.delete_hyperedge(id)? {
+                deleted += 1;
+            }
+        }
+        Ok(deleted)
+    }
+
     // Statistics
 
     /// Get the number of nodes

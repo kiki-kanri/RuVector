@@ -183,6 +183,59 @@ impl HypergraphIndex {
         Ok(())
     }
 
+    /// Remove an entity node and optionally cascade-delete incident hyperedges.
+    /// Returns the count of deleted hyperedges (cascade only).
+    pub fn remove_entity(&mut self, id: &VectorId, cascade: bool) -> usize {
+        let deleted_edges = if cascade {
+            let edge_ids: Vec<String> = self
+                .entity_to_hyperedges
+                .get(id)
+                .map(|s| s.iter().cloned().collect())
+                .unwrap_or_default();
+            let mut count = 0;
+            for edge_id in &edge_ids {
+                if self.remove_hyperedge(edge_id) {
+                    count += 1;
+                }
+            }
+            count
+        } else {
+            // Still clean up the entity → hyperedge mapping without touching edges
+            if let Some(edge_ids) = self.entity_to_hyperedges.remove(id) {
+                for edge_id in &edge_ids {
+                    if let Some(nodes) = self.hyperedge_to_entities.get_mut(edge_id) {
+                        nodes.remove(id);
+                    }
+                }
+            }
+            0
+        };
+        self.entities.remove(id);
+        deleted_edges
+    }
+
+    /// Remove a hyperedge by ID, cleaning up all index entries.
+    /// Returns true if the hyperedge existed.
+    pub fn remove_hyperedge(&mut self, id: &str) -> bool {
+        if let Some(hyperedge) = self.hyperedges.remove(id) {
+            // Clean up entity → hyperedge reverse index
+            for node in &hyperedge.nodes {
+                if let Some(set) = self.entity_to_hyperedges.get_mut(node) {
+                    set.remove(id);
+                }
+            }
+            self.hyperedge_to_entities.remove(id);
+
+            // Clean up temporal index entries that reference this id
+            for bucket_edges in self.temporal_index.values_mut() {
+                bucket_edges.retain(|eid| eid != id);
+            }
+            true
+        } else {
+            false
+        }
+    }
+
     /// Add a temporal hyperedge
     pub fn add_temporal_hyperedge(&mut self, temporal_edge: TemporalHyperedge) -> Result<()> {
         let bucket = temporal_edge.time_bucket();

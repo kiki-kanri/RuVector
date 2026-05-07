@@ -14,7 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 # RuvLLM core library
-ruvllm = { path = "../ruvllm", features = ["candle"] }
+ruvllm = { path = "../ruvllm", version = "2.2.1", features = ["candle"] }
 
 # CLI framework
 clap = { version = "4.5", features = ["derive", "cargo", "env"] }
@@ -25,8 +25,10 @@ console = { workspace = true }
 tokio = { workspace = true, features = ["full", "signal"] }
 futures = { workspace = true }
 
-# HuggingFace Hub for model downloads
-hf-hub = { version = "0.4", features = ["tokio"] }
+# HuggingFace Hub for model downloads.
+# default-features off + rustls-tls to avoid pulling openssl-sys/native-tls,
+# which doesn't cross-build to aarch64 without a sysroot (ADR-179, iter 2).
+hf-hub = { version = "0.4", default-features = false, features = ["tokio", "rustls-tls"] }
 
 # HTTP server for inference API
 axum = { version = "0.7", features = ["ws"] }

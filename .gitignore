@@ -140,3 +140,18 @@ agentdb.rvf
 agentdb.rvf.lock
 .kalshi
 bench_data/
+
+# Hailo Dataflow Compiler droppings — `hailo` CLI writes these into
+# whatever cwd it's invoked from, even with --output-dir set. Always
+# transient so any tree they land in should ignore them.
+acceleras.log
+hailo_sdk.client.log
+
+# Iter 228 — per-crate Cargo.lock files for the hailo workspace members
+# (post iter-219 workspace rejoin). The parent workspace's Cargo.lock
+# is canonical; cargo regenerates these locally as a side effect of
+# `cargo fmt --manifest-path` etc., but they should never be committed.
+crates/ruvector-hailo/Cargo.lock
+crates/ruvector-hailo-cluster/Cargo.lock
+crates/hailort-sys/Cargo.lock
+crates/ruvector-mmwave/Cargo.lock

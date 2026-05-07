@@ -1,604 +1,537 @@
-//! RuvLLM ESP32 - Complete Flashable Implementation
+//! RuvLLM ESP32 — Tiny Agents on Heterogeneous SoCs
 //!
-//! Full-featured LLM inference engine for ESP32 with:
-//! - INT8/Binary quantized transformer inference
-//! - Product quantization (8-32x compression)
-//! - MicroLoRA on-device adaptation
-//! - Sparse attention patterns
-//! - HNSW vector search (1000+ vectors)
-//! - Semantic memory with context
-//! - RAG (Retrieval-Augmented Generation)
-//! - Anomaly detection
-//! - Multi-chip federation
-//! - Pipeline/tensor parallelism
-//! - Speculative decoding
+//! Implements ADR-165: each ESP32 chip runs **one tiny-agent role** drawn from
+//! the ruvllm/ruvector primitive surface defined in `lib.rs`. This is the
+//! ADR-aligned replacement for the prior single-chip "tiny LLM" framing — see
+//! issue #409 for why the previous transformer skeleton was misleading.
 //!
-//! Flash with: espflash flash --monitor --port COM6
+//! Roles (one binary, one chip, one role):
+//!   - HnswIndexer       — MicroHNSW kNN index + HashEmbedder
+//!   - RagRetriever      — MicroRAG retrieval over embedded knowledge entries
+//!   - AnomalySentinel   — AnomalyDetector streaming on embedding drift
+//!   - MemoryArchivist   — SemanticMemory with type-tagged entries
+//!   - LoraAdapter       — MicroLoRA rank-1/2 on cached activations
+//!   - SpeculativeDrafter — SpeculativeDecoder federation drafter
+//!   - PipelineRelay     — PipelineNode head/middle/tail
+//!
+//! Always-on UART CLI: `role`, `stats`, `peers`, `add <text>`, `search <q>`,
+//! `recall <q>`, `check <text>`, `learn <text>`, `lora <hex>`, `set-role <name>`,
+//! `help`.
+//!
+//! Build paths:
+//!   - `--features esp32`      cross-compile to ESP-IDF, UART CLI on uart0
+//!   - `--features host-test`  x86_64 / aarch64 stdio harness for CI + dev
+//!   - `--features wasm`       browser shim (calls into the same primitives)
 
-#[cfg(feature = "esp32")]
-use esp_idf_svc::hal::prelude::*;
-#[cfg(feature = "esp32")]
-use esp_idf_svc::hal::uart::{self, UartDriver};
-#[cfg(feature = "esp32")]
-use esp_idf_svc::hal::gpio;
 #[cfg(feature = "esp32")]
 use esp_idf_svc::sys::link_patches;
 
 use heapless::Vec as HVec;
 use heapless::String as HString;
+#[allow(unused_imports)]
 use log::*;
 
-// Import library modules
-use ruvllm_esp32::prelude::*;
+// Explicit imports — avoid `prelude::*` because it brings in `Result` and
+// `Error` aliases that shadow the standard ones (causes E0107/E0277).
 use ruvllm_esp32::{
-    HNSWConfig, RAGConfig, MemoryType, DraftVerifyConfig,
-    PipelineConfig, PipelineRole, AnomalyConfig, PQConfig, LoRAConfig, PruningConfig,
-    AttentionPattern, DistanceMetric, euclidean_distance_i8,
+    Esp32Variant,
+    MicroHNSW, MicroRAG, SemanticMemory, AnomalyDetector, MicroVector,
+    MicroLoRA, LoRAConfig,
+    HNSWConfig, RAGConfig, MemoryType, AnomalyConfig, DistanceMetric,
+    federation::{ChipId, FederationMode, CommunicationBus, FederationConfig},
 };
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 
-const VOCAB_SIZE: usize = 256;
+/// Embedding dim shared across federation messages (ADR-165 §2.3).
 const EMBED_DIM: usize = 64;
-const NUM_LAYERS: usize = 2;
-const NUM_HEADS: usize = 4;
-const MAX_SEQ_LEN: usize = 32;
-const MAX_KNOWLEDGE: usize = 64;
-const HNSW_CAPACITY: usize = 256;
+/// HNSW capacity per indexer chip. 256 inflates `TinyAgent` past the main-task
+/// stack on real hardware — 32 keeps the on-stack size manageable for the demo
+/// while still exercising the full kNN path. CI / production should `Box` the
+/// fields and bump capacity (ADR-165 §7 follow-up).
+const HNSW_CAPACITY: usize = 32;
 
 // ============================================================================
-// QUANTIZED TYPES
+// TINY-AGENT ROLES (ADR-165 §2.1)
 // ============================================================================
 
-#[derive(Clone)]
-struct QuantizedWeights {
-    data: HVec<i8, 4096>,
-    scale: i32,
-    zero_point: i8,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Role {
+    HnswIndexer,
+    RagRetriever,
+    AnomalySentinel,
+    MemoryArchivist,
+    LoraAdapter,
+    SpeculativeDrafter,
+    PipelineRelay,
 }
 
-impl QuantizedWeights {
-    fn new(size: usize) -> Self {
-        let mut data = HVec::new();
-        for i in 0..size.min(4096) {
-            let val = ((i * 17 + 31) % 256) as i8 - 64;
-            let _ = data.push(val);
-        }
-        Self { data, scale: 128, zero_point: 0 }
-    }
-}
-
-// ============================================================================
-// EMBEDDING TABLE
-// ============================================================================
-
-struct EmbeddingTable {
-    embeddings: [[i8; EMBED_DIM]; VOCAB_SIZE],
-}
-
-impl EmbeddingTable {
-    fn new() -> Self {
-        let mut embeddings = [[0i8; EMBED_DIM]; VOCAB_SIZE];
-        for (token, embed) in embeddings.iter_mut().enumerate() {
-            for (i, val) in embed.iter_mut().enumerate() {
-                *val = (((token * 31 + i * 17) % 256) as i8).wrapping_sub(64);
-            }
-        }
-        Self { embeddings }
-    }
-
-    fn lookup(&self, token: u16) -> &[i8; EMBED_DIM] {
-        &self.embeddings[(token as usize) % VOCAB_SIZE]
-    }
-}
-
-// ============================================================================
-// ATTENTION WITH SPARSE PATTERNS
-// ============================================================================
-
-struct MicroAttention {
-    wq: QuantizedWeights,
-    wk: QuantizedWeights,
-    wv: QuantizedWeights,
-    wo: QuantizedWeights,
-    sparse: SparseAttention,
-    head_dim: usize,
-}
-
-impl MicroAttention {
-    fn new(pattern: AttentionPattern) -> Self {
-        let head_dim = EMBED_DIM / NUM_HEADS;
-        Self {
-            wq: QuantizedWeights::new(EMBED_DIM * EMBED_DIM),
-            wk: QuantizedWeights::new(EMBED_DIM * EMBED_DIM),
-            wv: QuantizedWeights::new(EMBED_DIM * EMBED_DIM),
-            wo: QuantizedWeights::new(EMBED_DIM * EMBED_DIM),
-            sparse: SparseAttention::new(pattern, MAX_SEQ_LEN, 8),
-            head_dim,
+impl Role {
+    /// Default role per variant (ADR-165 §2.2).
+    const fn default_for(variant: Esp32Variant) -> Self {
+        match variant {
+            Esp32Variant::Esp32 => Role::RagRetriever,
+            Esp32Variant::Esp32S2 => Role::AnomalySentinel,
+            Esp32Variant::Esp32S3 => Role::SpeculativeDrafter,
+            Esp32Variant::Esp32C3 => Role::HnswIndexer,
+            Esp32Variant::Esp32C6 => Role::MemoryArchivist,
         }
     }
 
-    fn forward(&self, input: &[i8], output: &mut [i8], seq_pos: usize) {
-        // Get sparse mask for current position
-        let mask = self.sparse.get_mask(seq_pos);
+    fn as_str(&self) -> &'static str {
+        match self {
+            Role::HnswIndexer => "HnswIndexer",
+            Role::RagRetriever => "RagRetriever",
+            Role::AnomalySentinel => "AnomalySentinel",
+            Role::MemoryArchivist => "MemoryArchivist",
+            Role::LoraAdapter => "LoraAdapter",
+            Role::SpeculativeDrafter => "SpeculativeDrafter",
+            Role::PipelineRelay => "PipelineRelay",
+        }
+    }
 
-        for (i, val) in input.iter().enumerate() {
-            if i < output.len() {
-                let w_idx = i % self.wq.data.len();
-                // Apply sparse attention - only attend to allowed positions
-                let attended = if i < mask.len() && mask[i] {
-                    (*val as i32 * self.wq.data[w_idx] as i32) >> 7
-                } else {
-                    0
-                };
-                output[i] = attended.clamp(-127, 127) as i8;
-            }
+    fn parse(s: &str) -> Option<Self> {
+        match s {
+            "HnswIndexer" | "hnsw" => Some(Role::HnswIndexer),
+            "RagRetriever" | "rag" => Some(Role::RagRetriever),
+            "AnomalySentinel" | "anomaly" => Some(Role::AnomalySentinel),
+            "MemoryArchivist" | "memory" => Some(Role::MemoryArchivist),
+            "LoraAdapter" | "lora" => Some(Role::LoraAdapter),
+            "SpeculativeDrafter" | "drafter" => Some(Role::SpeculativeDrafter),
+            "PipelineRelay" | "relay" => Some(Role::PipelineRelay),
+            _ => None,
         }
     }
 }
 
 // ============================================================================
-// FEED-FORWARD WITH PRUNING
+// HASH EMBEDDER (ADR-074 Tier 1)
 // ============================================================================
 
-struct FeedForward {
-    w1: QuantizedWeights,
-    w2: QuantizedWeights,
-    pruner: LayerPruner,
-}
+/// Deterministic FNV-1a + char-bigram bag, signed-INT8 normalized to ±64.
+/// No floats, no model weights, no cold start. Federation-interoperable
+/// because every role on every variant uses the same function.
+fn hash_embed(text: &str) -> [i8; EMBED_DIM] {
+    let mut acc = [0i32; EMBED_DIM];
+    let bytes = text.as_bytes();
 
-impl FeedForward {
-    fn new(config: PruningConfig) -> Self {
-        Self {
-            w1: QuantizedWeights::new(EMBED_DIM * 4 * EMBED_DIM),
-            w2: QuantizedWeights::new(4 * EMBED_DIM * EMBED_DIM),
-            pruner: LayerPruner::new(config),
+    // Unigrams (FNV-1a)
+    let mut h: u32 = 0x811C9DC5;
+    for (i, &b) in bytes.iter().enumerate() {
+        h ^= b as u32;
+        h = h.wrapping_mul(0x01000193);
+        let slot = (h as usize ^ i) % EMBED_DIM;
+        acc[slot] = acc[slot].saturating_add(((h >> 16) & 0xFF) as i32 - 128);
+    }
+
+    // Char bigrams
+    if bytes.len() >= 2 {
+        for win in bytes.windows(2) {
+            let mut bh: u32 = 0x811C9DC5;
+            bh ^= win[0] as u32; bh = bh.wrapping_mul(0x01000193);
+            bh ^= win[1] as u32; bh = bh.wrapping_mul(0x01000193);
+            let slot = (bh as usize) % EMBED_DIM;
+            acc[slot] = acc[slot].saturating_add(((bh >> 8) & 0xFF) as i32 - 128);
         }
     }
 
-    fn forward(&self, input: &[i8], output: &mut [i8]) {
-        for (i, val) in input.iter().enumerate() {
-            if i < output.len() {
-                let w_idx = i % self.w1.data.len();
-                // Check if weight is pruned
-                let weight = if !self.pruner.is_pruned(w_idx) {
-                    self.w1.data[w_idx] as i32
-                } else {
-                    0
-                };
-                let hidden = (*val as i32 * weight) >> 7;
-                let activated = hidden.max(0);
-                output[i] = activated.clamp(-127, 127) as i8;
-            }
-        }
+    // L2-style normalize: clamp to ±64 by largest absolute (integer-only).
+    let mut max_abs: i32 = 1;
+    for &v in &acc { if v.abs() > max_abs { max_abs = v.abs(); } }
+
+    let mut out = [0i8; EMBED_DIM];
+    for (i, &v) in acc.iter().enumerate() {
+        out[i] = ((v.saturating_mul(64)) / max_abs).clamp(-127, 127) as i8;
     }
+    out
 }
 
 // ============================================================================
-// TRANSFORMER LAYER WITH LORA
+// TINY AGENT
 // ============================================================================
 
-struct TransformerLayer {
-    attention: MicroAttention,
-    ffn: FeedForward,
+struct TinyAgent {
+    role: Role,
+    variant: Esp32Variant,
+    chip_id: ChipId,
+
+    // Primitives — only allocated for the active role.
+    hnsw: Option<MicroHNSW<EMBED_DIM, HNSW_CAPACITY>>,
+    rag: Option<MicroRAG>,
+    memory: Option<SemanticMemory>,
+    anomaly: Option<AnomalyDetector>,
     lora: Option<MicroLoRA>,
+
+    // Counters surfaced via `stats`.
+    ops: u32,
 }
 
-impl TransformerLayer {
-    fn new(lora_config: Option<LoRAConfig>) -> Self {
-        let attn_pattern = AttentionPattern::SlidingWindow { window_size: 8 };
-        let prune_config = PruningConfig::default();
-
-        Self {
-            attention: MicroAttention::new(attn_pattern),
-            ffn: FeedForward::new(prune_config),
-            lora: lora_config.map(|c| MicroLoRA::new(c)),
-        }
-    }
-
-    fn forward(&self, input: &[i8], output: &mut [i8], seq_pos: usize) {
-        let mut attn_out = [0i8; EMBED_DIM];
-        self.attention.forward(input, &mut attn_out, seq_pos);
-
-        // Apply LoRA adaptation if enabled
-        if let Some(ref lora) = self.lora {
-            let adapted = lora.forward(&attn_out);
-            for (i, v) in adapted.iter().enumerate().take(EMBED_DIM) {
-                attn_out[i] = attn_out[i].saturating_add(*v);
-            }
-        }
-
-        // Residual connection
-        for i in 0..EMBED_DIM {
-            attn_out[i] = attn_out[i].saturating_add(input[i] / 2);
-        }
-
-        self.ffn.forward(&attn_out, output);
-
-        // Residual connection
-        for i in 0..EMBED_DIM {
-            output[i] = output[i].saturating_add(attn_out[i] / 2);
-        }
-    }
-}
-
-// ============================================================================
-// TINY MODEL WITH FULL FEATURES
-// ============================================================================
-
-struct TinyModel {
-    embeddings: EmbeddingTable,
-    layers: [TransformerLayer; NUM_LAYERS],
-    lm_head: QuantizedWeights,
-    binary_embed: Option<BinaryVector>,
-    pq: Option<ProductQuantizer>,
-}
-
-impl TinyModel {
-    fn new(use_lora: bool, use_pq: bool) -> Self {
-        let lora_config = if use_lora {
-            Some(LoRAConfig { rank: 2, alpha: 4, input_dim: EMBED_DIM, output_dim: EMBED_DIM })
-        } else {
-            None
+impl TinyAgent {
+    fn new(variant: Esp32Variant, role: Role, chip_id: ChipId) -> Self {
+        let mut agent = Self {
+            role, variant, chip_id,
+            hnsw: None, rag: None, memory: None, anomaly: None, lora: None,
+            ops: 0,
         };
+        agent.activate();
+        agent
+    }
 
-        let pq = if use_pq {
-            Some(ProductQuantizer::new(PQConfig {
-                dim: EMBED_DIM,
-                num_subspaces: 8,
-                num_centroids: 16,
-            }))
+    fn activate(&mut self) {
+        // Reset all primitives, then enable the ones this role needs.
+        self.hnsw = None;
+        self.rag = None;
+        self.memory = None;
+        self.anomaly = None;
+        self.lora = None;
+
+        match self.role {
+            Role::HnswIndexer => {
+                self.hnsw = Some(MicroHNSW::new(HNSWConfig {
+                    m: if self.variant.has_simd() { 8 } else { 4 },
+                    m_max0: if self.variant.has_simd() { 16 } else { 8 },
+                    ef_construction: 32,
+                    ef_search: 16,
+                    metric: DistanceMetric::Euclidean,
+                    binary_mode: !self.variant.has_fpu(),
+                }));
+            }
+            Role::RagRetriever => {
+                self.rag = Some(MicroRAG::new(RAGConfig::default()));
+                self.hnsw = Some(MicroHNSW::new(HNSWConfig::default()));
+            }
+            Role::AnomalySentinel => {
+                self.anomaly = Some(AnomalyDetector::new(AnomalyConfig::default()));
+            }
+            Role::MemoryArchivist => {
+                self.memory = Some(SemanticMemory::new());
+            }
+            Role::LoraAdapter => {
+                let cfg = LoRAConfig { rank: 2, dim: EMBED_DIM, scale: 8, frozen: false };
+                self.lora = MicroLoRA::new(cfg, self.chip_id.0 as u32 ^ 0xDEAD_BEEF).ok();
+            }
+            Role::SpeculativeDrafter => {
+                // The drafter holds an HNSW index for context lookup; the
+                // SpeculativeDecoder itself is constructed per-request from
+                // FederationConfig, so we don't keep it here.
+                self.hnsw = Some(MicroHNSW::new(HNSWConfig::default()));
+            }
+            Role::PipelineRelay => {
+                // Relay is stateless on data; routing comes from the
+                // FederationConfig::default chain (Pipeline mode, SPI bus).
+            }
+        }
+    }
+
+    fn set_role(&mut self, role: Role) {
+        self.role = role;
+        self.activate();
+    }
+
+    // ---- HnswIndexer + SpeculativeDrafter ----
+    fn hnsw_add(&mut self, text: &str) -> Result<usize, &'static str> {
+        let hnsw = self.hnsw.as_mut().ok_or("role does not own hnsw")?;
+        let emb = hash_embed(text);
+        let v = MicroVector::<EMBED_DIM>::from_i8(&emb, hnsw.len() as u32)
+            .ok_or("embed dim mismatch")?;
+        let idx = hnsw.insert(&v)?;
+        self.ops = self.ops.saturating_add(1);
+        Ok(idx)
+    }
+
+    fn hnsw_search(&mut self, query: &str, k: usize) -> Result<HVec<u32, 8>, &'static str> {
+        let hnsw = self.hnsw.as_ref().ok_or("role does not own hnsw")?;
+        let emb = hash_embed(query);
+        let mut ids = HVec::new();
+        for r in hnsw.search(&emb, k).iter().take(k) {
+            let _ = ids.push(r.id);
+        }
+        self.ops = self.ops.saturating_add(1);
+        Ok(ids)
+    }
+
+    // ---- RagRetriever ----
+    fn rag_add(&mut self, text: &str) -> Result<u32, &'static str> {
+        let rag = self.rag.as_mut().ok_or("role does not own rag")?;
+        let emb = hash_embed(text);
+        let id = rag.add_knowledge(text, &emb, "uart-cli", 50)?;
+        // mirror into the local hnsw index if present
+        if let Some(hnsw) = self.hnsw.as_mut() {
+            if let Some(v) = MicroVector::<EMBED_DIM>::from_i8(&emb, id) {
+                let _ = hnsw.insert(&v);
+            }
+        }
+        self.ops = self.ops.saturating_add(1);
+        Ok(id)
+    }
+
+    fn rag_recall(&mut self, query: &str) -> Result<HString<128>, &'static str> {
+        let rag = self.rag.as_ref().ok_or("role does not own rag")?;
+        let emb = hash_embed(query);
+        let res = rag.retrieve(&emb);
+        self.ops = self.ops.saturating_add(1);
+        let mut out = HString::new();
+        if let Some((entry, _score)) = res.entries.first() {
+            for c in entry.text.chars().take(127) { let _ = out.push(c); }
         } else {
-            None
-        };
-
-        Self {
-            embeddings: EmbeddingTable::new(),
-            layers: [
-                TransformerLayer::new(lora_config.clone()),
-                TransformerLayer::new(lora_config),
-            ],
-            lm_head: QuantizedWeights::new(EMBED_DIM * VOCAB_SIZE),
-            binary_embed: Some(BinaryVector::new()),
-            pq,
+            let _ = out.push_str("(no match)");
         }
+        Ok(out)
     }
 
-    fn forward(&self, token: u16, seq_pos: usize) -> u16 {
-        let embed = self.embeddings.lookup(token);
-        let mut hidden = *embed;
-
-        // Pass through layers
-        for layer in &self.layers {
-            let mut output = [0i8; EMBED_DIM];
-            layer.forward(&hidden, &mut output, seq_pos);
-            hidden = output;
-        }
-
-        // Project to vocabulary
-        let mut max_logit = i32::MIN;
-        let mut max_token = 0u16;
-
-        for t in 0..VOCAB_SIZE {
-            let mut logit = 0i32;
-            for i in 0..EMBED_DIM {
-                let w_idx = t * EMBED_DIM + i;
-                if w_idx < self.lm_head.data.len() {
-                    logit += hidden[i] as i32 * self.lm_head.data[w_idx] as i32;
-                }
-            }
-            if logit > max_logit {
-                max_logit = logit;
-                max_token = t as u16;
-            }
-        }
-
-        max_token
+    // ---- AnomalySentinel ----
+    fn anomaly_learn(&mut self, text: &str) -> Result<bool, &'static str> {
+        let det = self.anomaly.as_mut().ok_or("role does not own anomaly")?;
+        let emb = hash_embed(text);
+        let r = det.add_sample(&emb)?;
+        self.ops = self.ops.saturating_add(1);
+        Ok(r.is_anomaly)
     }
-}
 
-// ============================================================================
-// FULL INFERENCE ENGINE
-// ============================================================================
+    fn anomaly_check(&mut self, text: &str) -> Result<bool, &'static str> {
+        let det = self.anomaly.as_ref().ok_or("role does not own anomaly")?;
+        let emb = hash_embed(text);
+        self.ops = self.ops.saturating_add(1);
+        Ok(det.check(&emb).is_anomaly)
+    }
 
-struct MicroEngine {
-    model: TinyModel,
-    hnsw: MicroHNSW<EMBED_DIM, HNSW_CAPACITY>,
-    rag: MicroRAG<EMBED_DIM, MAX_KNOWLEDGE>,
-    memory: SemanticMemory<EMBED_DIM, 32>,
-    anomaly: AnomalyDetector,
-    speculative: Option<SpeculativeDecoder>,
-    tokens_generated: u32,
-    variant: Esp32Variant,
-}
+    // ---- MemoryArchivist ----
+    fn mem_remember(&mut self, kind: MemoryType, text: &str) -> Result<u32, &'static str> {
+        let mem = self.memory.as_mut().ok_or("role does not own memory")?;
+        let emb = hash_embed(text);
+        let id = mem.remember(kind, text, &emb)?;
+        self.ops = self.ops.saturating_add(1);
+        Ok(id)
+    }
 
-impl MicroEngine {
-    fn new(variant: Esp32Variant, enable_speculative: bool) -> Self {
-        info!("Initializing MicroEngine for {:?}...", variant);
-        info!("  Available SRAM: {} KB", variant.sram_bytes() / 1024);
-        info!("  Max model RAM: {} KB", variant.max_model_ram() / 1024);
-
-        let use_lora = variant.sram_bytes() >= 400 * 1024;
-        let use_pq = variant.sram_bytes() >= 320 * 1024;
-
-        let hnsw_config = HNSWConfig {
-            m: if variant.has_simd() { 8 } else { 4 },
-            m_max0: if variant.has_simd() { 16 } else { 8 },
-            ef_construction: 32,
-            ef_search: 16,
-            metric: DistanceMetric::Euclidean,
-            binary_mode: !variant.has_fpu(),
-        };
-
-        let rag_config = RAGConfig::default();
-        let anomaly_config = AnomalyConfig::default();
-
-        let speculative = if enable_speculative && variant.sram_bytes() >= 512 * 1024 {
-            Some(SpeculativeDecoder::new(DraftVerifyConfig {
-                draft_length: 4,
-                max_rejections: 2,
-                temperature: 100,
-                verify_all: false,
-            }))
+    fn mem_recall(&mut self, query: &str) -> Result<HString<128>, &'static str> {
+        let mem = self.memory.as_mut().ok_or("role does not own memory")?;
+        let emb = hash_embed(query);
+        let hits = mem.recall(&emb, 1);
+        self.ops = self.ops.saturating_add(1);
+        let mut out = HString::new();
+        if let Some((m, _)) = hits.first() {
+            for c in m.text.chars().take(127) { let _ = out.push(c); }
         } else {
-            None
-        };
-
-        Self {
-            model: TinyModel::new(use_lora, use_pq),
-            hnsw: MicroHNSW::new(hnsw_config),
-            rag: MicroRAG::new(rag_config),
-            memory: SemanticMemory::new(),
-            anomaly: AnomalyDetector::new(anomaly_config),
-            speculative,
-            tokens_generated: 0,
-            variant,
+            let _ = out.push_str("(no recall)");
         }
+        Ok(out)
     }
 
-    fn generate(&mut self, input: &[u16], max_tokens: usize) -> HVec<u16, 64> {
-        let mut output = HVec::new();
-        let mut current = *input.last().unwrap_or(&1);
-        let mut seq_pos = input.len();
-
-        if let Some(ref mut spec) = self.speculative {
-            // Speculative decoding: generate drafts and verify
-            while output.len() < max_tokens {
-                // Draft phase
-                let mut drafts = HVec::<u16, 8>::new();
-                for _ in 0..4 {
-                    let next = self.model.forward(current, seq_pos);
-                    let _ = drafts.push(next);
-                    current = next;
-                    seq_pos += 1;
-                }
-
-                // Verify phase (simplified)
-                for &token in drafts.iter() {
-                    if output.len() < max_tokens {
-                        let _ = output.push(token);
-                        self.tokens_generated += 1;
-                    }
-                    if token == 0 { return output; }
-                }
-            }
-        } else {
-            // Standard decoding
-            for _ in 0..max_tokens {
-                let next = self.model.forward(current, seq_pos);
-                let _ = output.push(next);
-                self.tokens_generated += 1;
-                current = next;
-                seq_pos += 1;
-                if next == 0 { break; }
-            }
+    // ---- LoraAdapter ----
+    fn lora_apply_demo(&mut self) -> Result<(), &'static str> {
+        let lora = self.lora.as_mut().ok_or("role does not own lora")?;
+        let mut input = [0i8; EMBED_DIM];
+        for (i, b) in input.iter_mut().enumerate() {
+            *b = ((i as i32 * 13) % 127 - 63) as i8;
         }
-
-        output
+        let mut out = [0i32; EMBED_DIM];
+        lora.apply(&input, &mut out);
+        self.ops = self.ops.saturating_add(1);
+        Ok(())
     }
 
-    fn add_knowledge(&mut self, text: &str) -> Result<u32, &'static str> {
-        let embedding = embed_text(text);
-
-        // Add to HNSW index
-        let mut vec_data = HVec::new();
-        for &v in embedding.iter() {
-            let _ = vec_data.push(v);
+    // ---- Stats ----
+    fn stats_line(&self) -> HString<256> {
+        let mut s = HString::new();
+        let _ = s.push_str("role=");
+        let _ = s.push_str(self.role.as_str());
+        let _ = s.push_str(" variant=");
+        let _ = s.push_str(variant_name(self.variant));
+        let _ = s.push_str(" sram_kb=");
+        let _ = s.push_str(&format_u32((self.variant.sram_bytes() / 1024) as u32));
+        let _ = s.push_str(" ops=");
+        let _ = s.push_str(&format_u32(self.ops));
+        if let Some(h) = &self.hnsw {
+            let _ = s.push_str(" hnsw=");
+            let _ = s.push_str(&format_u32(h.len() as u32));
         }
-        let vec = MicroVector { data: vec_data, id: self.hnsw.len() as u32 };
-        self.hnsw.insert(&vec)?;
-
-        // Add to RAG
-        self.rag.add_knowledge(text, &embedding)?;
-
-        // Add to semantic memory
-        self.memory.add_memory(&embedding, &[], MemoryType::Factual)?;
-
-        Ok(vec.id)
-    }
-
-    fn query_rag(&self, query: &str, k: usize) -> HVec<HString<64>, 4> {
-        let embedding = embed_text(query);
-
-        // Search HNSW
-        let results = self.hnsw.search(&embedding, k);
-
-        // Also query RAG
-        let rag_results = self.rag.retrieve(&embedding, k);
-
-        let mut texts = HVec::new();
-        for result in rag_results.iter().take(k) {
-            let mut s = HString::new();
-            for c in result.content.iter() {
-                let _ = s.push(*c);
-            }
-            let _ = texts.push(s);
+        if let Some(r) = &self.rag {
+            let _ = s.push_str(" rag=");
+            let _ = s.push_str(&format_u32(r.len() as u32));
         }
-        texts
-    }
-
-    fn check_anomaly(&mut self, text: &str) -> AnomalyResult {
-        let embedding = embed_text(text);
-        self.anomaly.check(&embedding)
-    }
-
-    fn stats(&self) -> EngineStats {
-        EngineStats {
-            tokens_generated: self.tokens_generated,
-            knowledge_entries: self.rag.len(),
-            hnsw_vectors: self.hnsw.len(),
-            memory_entries: self.memory.len(),
-            variant: self.variant,
-            has_speculative: self.speculative.is_some(),
+        if let Some(m) = &self.memory {
+            let _ = s.push_str(" mem=");
+            let _ = s.push_str(&format_u32(m.len() as u32));
         }
+        if let Some(a) = &self.anomaly {
+            let _ = s.push_str(" anomaly_samples=");
+            let _ = s.push_str(&format_u32(a.len() as u32));
+        }
+        s
     }
 }
 
-#[derive(Debug)]
-struct EngineStats {
-    tokens_generated: u32,
-    knowledge_entries: usize,
-    hnsw_vectors: usize,
-    memory_entries: usize,
-    variant: Esp32Variant,
-    has_speculative: bool,
+fn variant_name(v: Esp32Variant) -> &'static str {
+    match v {
+        Esp32Variant::Esp32 => "esp32",
+        Esp32Variant::Esp32S2 => "esp32s2",
+        Esp32Variant::Esp32S3 => "esp32s3",
+        Esp32Variant::Esp32C3 => "esp32c3",
+        Esp32Variant::Esp32C6 => "esp32c6",
+    }
+}
+
+fn parse_variant(s: &str) -> Option<Esp32Variant> {
+    match s {
+        "esp32" => Some(Esp32Variant::Esp32),
+        "esp32s2" => Some(Esp32Variant::Esp32S2),
+        "esp32s3" => Some(Esp32Variant::Esp32S3),
+        "esp32c3" => Some(Esp32Variant::Esp32C3),
+        "esp32c6" => Some(Esp32Variant::Esp32C6),
+        _ => None,
+    }
 }
 
 // ============================================================================
-// TEXT EMBEDDING
+// FEDERATION DESCRIPTOR
 // ============================================================================
 
-fn embed_text(text: &str) -> [i8; EMBED_DIM] {
-    let mut embedding = [0i8; EMBED_DIM];
-
-    for (i, byte) in text.bytes().enumerate() {
-        let idx = i % EMBED_DIM;
-        embedding[idx] = embedding[idx].saturating_add(
-            ((byte as i32 * 31 + i as i32 * 17) % 256 - 128) as i8 / 4
-        );
+fn federation_descriptor(chip_id: ChipId) -> FederationConfig {
+    FederationConfig {
+        num_chips: 5,
+        chip_id,
+        mode: FederationMode::Pipeline,
+        bus: CommunicationBus::Uart,
+        layers_per_chip: 1,
+        heads_per_chip: 1,
+        enable_pipelining: true,
     }
-
-    // Normalize
-    let mut max_val = 1i8;
-    for v in &embedding {
-        max_val = max_val.max(v.abs());
-    }
-    if max_val > 1 {
-        for v in &mut embedding {
-            *v = (*v as i32 * 64 / max_val as i32) as i8;
-        }
-    }
-
-    embedding
 }
 
 // ============================================================================
-// UART COMMAND PARSER
+// COMMAND PROCESSOR (shared by esp32 + host-test)
 // ============================================================================
 
-fn process_command(cmd: &str, engine: &mut MicroEngine) -> HString<512> {
+fn process_command(cmd: &str, agent: &mut TinyAgent) -> HString<512> {
     let mut response = HString::new();
     let cmd = cmd.trim();
 
-    if cmd.starts_with("gen ") {
-        let prompt = &cmd[4..];
-        let tokens: HVec<u16, 8> = prompt.bytes().take(8).map(|b| b as u16).collect();
-        let output = engine.generate(&tokens, 10);
-
-        let _ = response.push_str("Generated: ");
-        for (i, t) in output.iter().enumerate() {
-            if i > 0 { let _ = response.push_str(", "); }
-            let c = (*t as u8) as char;
-            if c.is_ascii_alphanumeric() || c == ' ' {
-                let _ = response.push(c);
-            } else {
-                let _ = response.push('?');
-            }
-        }
-    } else if cmd.starts_with("add ") {
-        let knowledge = &cmd[4..];
-        match engine.add_knowledge(knowledge) {
-            Ok(id) => {
-                let _ = response.push_str("Added knowledge #");
-                let _ = response.push_str(&format_u32(id));
-            }
-            Err(e) => {
-                let _ = response.push_str("Error: ");
-                let _ = response.push_str(e);
-            }
-        }
-    } else if cmd.starts_with("ask ") {
-        let query = &cmd[4..];
-        let results = engine.query_rag(query, 2);
-
-        if results.is_empty() {
-            let _ = response.push_str("No results found");
-        } else {
-            let _ = response.push_str("Found: ");
-            for (i, text) in results.iter().enumerate() {
-                if i > 0 { let _ = response.push_str(" | "); }
-                let _ = response.push_str(text.as_str());
-            }
-        }
-    } else if cmd.starts_with("anomaly ") {
-        let text = &cmd[8..];
-        let result = engine.check_anomaly(text);
-        let _ = response.push_str(if result.is_anomaly { "ANOMALY" } else { "NORMAL" });
-        let _ = response.push_str(" (score: ");
-        let _ = response.push_str(&format_i32(result.score));
-        let _ = response.push_str(", threshold: ");
-        let _ = response.push_str(&format_i32(result.threshold));
-        let _ = response.push_str(")");
+    if cmd == "role" {
+        let _ = response.push_str("role: ");
+        let _ = response.push_str(agent.role.as_str());
+    } else if cmd == "variant" {
+        let _ = response.push_str("variant: ");
+        let _ = response.push_str(variant_name(agent.variant));
     } else if cmd == "stats" {
-        let stats = engine.stats();
-        let _ = response.push_str("Tokens: ");
-        let _ = response.push_str(&format_u32(stats.tokens_generated));
-        let _ = response.push_str(", Knowledge: ");
-        let _ = response.push_str(&format_u32(stats.knowledge_entries as u32));
-        let _ = response.push_str(", HNSW: ");
-        let _ = response.push_str(&format_u32(stats.hnsw_vectors as u32));
-        let _ = response.push_str(", Memory: ");
-        let _ = response.push_str(&format_u32(stats.memory_entries as u32));
-        let _ = response.push_str(", Spec: ");
-        let _ = response.push_str(if stats.has_speculative { "yes" } else { "no" });
-    } else if cmd == "features" {
-        let _ = response.push_str("Features:\n");
-        let _ = response.push_str("  - Binary quantization (32x compress)\n");
-        let _ = response.push_str("  - Product quantization (8-32x)\n");
-        let _ = response.push_str("  - MicroLoRA adaptation\n");
-        let _ = response.push_str("  - Sparse attention\n");
-        let _ = response.push_str("  - HNSW vector search\n");
-        let _ = response.push_str("  - Semantic memory\n");
-        let _ = response.push_str("  - RAG retrieval\n");
-        let _ = response.push_str("  - Anomaly detection\n");
-        if engine.speculative.is_some() {
-            let _ = response.push_str("  - Speculative decoding\n");
+        let s = agent.stats_line();
+        let _ = response.push_str(&s);
+    } else if cmd == "peers" {
+        let fed = federation_descriptor(agent.chip_id);
+        let _ = response.push_str("federation: ");
+        let _ = response.push_str(&format_u32(fed.num_chips as u32));
+        let _ = response.push_str(" chips, mode=Pipeline, bus=Uart, chip_id=");
+        let _ = response.push_str(&format_u32(agent.chip_id.0 as u32));
+    } else if let Some(rest) = cmd.strip_prefix("set-role ") {
+        match Role::parse(rest.trim()) {
+            Some(r) => {
+                agent.set_role(r);
+                let _ = response.push_str("role set to ");
+                let _ = response.push_str(agent.role.as_str());
+            }
+            None => { let _ = response.push_str("unknown role (try: hnsw|rag|anomaly|memory|lora|drafter|relay)"); }
         }
-    } else if cmd == "help" {
-        let _ = response.push_str("Commands:\n");
-        let _ = response.push_str("  gen <text>    - Generate tokens\n");
-        let _ = response.push_str("  add <text>    - Add to knowledge base\n");
-        let _ = response.push_str("  ask <query>   - Query knowledge\n");
-        let _ = response.push_str("  anomaly <txt> - Check for anomaly\n");
-        let _ = response.push_str("  stats         - Show statistics\n");
-        let _ = response.push_str("  features      - List features\n");
-        let _ = response.push_str("  help          - This help");
+    } else if let Some(rest) = cmd.strip_prefix("add ") {
+        let r = match agent.role {
+            Role::HnswIndexer | Role::SpeculativeDrafter => agent.hnsw_add(rest).map(|i| i as u32),
+            Role::RagRetriever => agent.rag_add(rest),
+            _ => Err("`add` requires HnswIndexer / SpeculativeDrafter / RagRetriever"),
+        };
+        match r {
+            Ok(id) => { let _ = response.push_str("added id="); let _ = response.push_str(&format_u32(id)); }
+            Err(e) => { let _ = response.push_str("err: "); let _ = response.push_str(e); }
+        }
+    } else if let Some(rest) = cmd.strip_prefix("search ") {
+        match agent.hnsw_search(rest, 4) {
+            Ok(ids) => {
+                let _ = response.push_str("hits: ");
+                for (i, id) in ids.iter().enumerate() {
+                    if i > 0 { let _ = response.push_str(","); }
+                    let _ = response.push_str(&format_u32(*id));
+                }
+                if ids.is_empty() { let _ = response.push_str("(none)"); }
+            }
+            Err(e) => { let _ = response.push_str("err: "); let _ = response.push_str(e); }
+        }
+    } else if let Some(rest) = cmd.strip_prefix("recall ") {
+        let r = match agent.role {
+            Role::RagRetriever => agent.rag_recall(rest),
+            Role::MemoryArchivist => agent.mem_recall(rest),
+            _ => Err("`recall` requires RagRetriever or MemoryArchivist"),
+        };
+        match r {
+            Ok(s) => { let _ = response.push_str("top: "); let _ = response.push_str(&s); }
+            Err(e) => { let _ = response.push_str("err: "); let _ = response.push_str(e); }
+        }
+    } else if let Some(rest) = cmd.strip_prefix("learn ") {
+        match agent.anomaly_learn(rest) {
+            Ok(was_anom) => {
+                let _ = response.push_str("learned, prev_was_anomaly=");
+                let _ = response.push_str(if was_anom { "true" } else { "false" });
+            }
+            Err(e) => { let _ = response.push_str("err: "); let _ = response.push_str(e); }
+        }
+    } else if let Some(rest) = cmd.strip_prefix("check ") {
+        match agent.anomaly_check(rest) {
+            Ok(is_anom) => {
+                let _ = response.push_str(if is_anom { "ANOMALY" } else { "NORMAL" });
+            }
+            Err(e) => { let _ = response.push_str("err: "); let _ = response.push_str(e); }
+        }
+    } else if let Some(rest) = cmd.strip_prefix("remember ") {
+        // Format: `remember <type> <text>` where type ∈ {fact,event,context,...}
+        let mut parts = rest.splitn(2, ' ');
+        let kind_s = parts.next().unwrap_or("");
+        let text = parts.next().unwrap_or("");
+        let kind = match kind_s {
+            "fact" => MemoryType::Fact,
+            "event" => MemoryType::Event,
+            "context" => MemoryType::Context,
+            "preference" => MemoryType::Preference,
+            "procedure" => MemoryType::Procedure,
+            "entity" => MemoryType::Entity,
+            "emotion" => MemoryType::Emotion,
+            "state" => MemoryType::State,
+            _ => { let _ = response.push_str("unknown memory type"); return response; }
+        };
+        match agent.mem_remember(kind, text) {
+            Ok(id) => { let _ = response.push_str("remembered id="); let _ = response.push_str(&format_u32(id)); }
+            Err(e) => { let _ = response.push_str("err: "); let _ = response.push_str(e); }
+        }
+    } else if cmd == "lora" {
+        match agent.lora_apply_demo() {
+            Ok(()) => { let _ = response.push_str("lora applied (rank=2, dim=64)"); }
+            Err(e) => { let _ = response.push_str("err: "); let _ = response.push_str(e); }
+        }
+    } else if cmd == "help" || cmd.is_empty() {
+        let _ = response.push_str(HELP_TEXT);
     } else {
-        let _ = response.push_str("Unknown command. Type 'help'");
+        let _ = response.push_str("unknown command. type 'help'");
     }
 
     response
 }
 
+const HELP_TEXT: &str = "ruvllm-esp32 tiny-agent (ADR-165). commands:\n\
+  role | variant | stats | peers | help\n\
+  set-role <hnsw|rag|anomaly|memory|lora|drafter|relay>\n\
+  add <text>           (HnswIndexer / RagRetriever / SpeculativeDrafter)\n\
+  search <text>        (any role with hnsw)\n\
+  recall <text>        (RagRetriever / MemoryArchivist)\n\
+  learn <text>         (AnomalySentinel)\n\
+  check <text>         (AnomalySentinel)\n\
+  remember <type> <t>  (MemoryArchivist) types: fact|event|context|...\n\
+  lora                 (LoraAdapter — applies a demo rank-2 update)";
+
+// ============================================================================
+// FORMATTING
+// ============================================================================
+
 fn format_u32(n: u32) -> HString<16> {
     let mut s = HString::new();
-    if n == 0 {
-        let _ = s.push('0');
-        return s;
-    }
-
+    if n == 0 { let _ = s.push('0'); return s; }
     let mut digits = [0u8; 10];
     let mut i = 0;
     let mut num = n;
@@ -607,7 +540,6 @@ fn format_u32(n: u32) -> HString<16> {
         num /= 10;
         i += 1;
     }
-
     while i > 0 {
         i -= 1;
         let _ = s.push((b'0' + digits[i]) as char);
@@ -615,164 +547,112 @@ fn format_u32(n: u32) -> HString<16> {
     s
 }
 
-fn format_i32(n: i32) -> HString<16> {
-    let mut s = HString::new();
-    if n < 0 {
-        let _ = s.push('-');
-        return s;
-    }
-    format_u32(n as u32)
-}
-
 // ============================================================================
-// MAIN
+// ENTRY POINTS
 // ============================================================================
 
 #[cfg(feature = "esp32")]
 fn main() -> anyhow::Result<()> {
     link_patches();
-    esp_idf_svc::log::EspLogger::initialize_default();
 
-    info!("╔══════════════════════════════════════════╗");
-    info!("║  RuvLLM ESP32 - Full Feature LLM v0.2    ║");
-    info!("╚══════════════════════════════════════════╝");
+    // Portable stdio path — compiles for every ESP32 variant. `eprintln!`
+    // routes to whatever ESP-IDF console is configured for the target
+    // (USB-Serial/JTAG on S3/C3/C6, UART0 on original ESP32 and S2).
+    // ADR-166 §10 documents per-chip output behavior; the interactive CLI
+    // polish needs a per-chip driver-install path.
 
-    // Detect ESP32 variant (default to ESP32-S3 for demo)
-    let variant = Esp32Variant::Esp32S3;
-    info!("Detected: {:?} ({} KB SRAM)", variant, variant.sram_bytes() / 1024);
+    let variant = match option_env!("RUVLLM_VARIANT") {
+        Some(s) => parse_variant(s).unwrap_or(Esp32Variant::Esp32S3),
+        None => Esp32Variant::Esp32S3,
+    };
+    let role = match option_env!("RUVLLM_ROLE") {
+        Some(s) => Role::parse(s).unwrap_or_else(|| Role::default_for(variant)),
+        None => Role::default_for(variant),
+    };
+    let chip_id = ChipId(option_env!("RUVLLM_CHIP_ID").and_then(|s| s.parse().ok()).unwrap_or(0));
 
-    let peripherals = Peripherals::take()?;
-    let tx = peripherals.pins.gpio1;
-    let rx = peripherals.pins.gpio3;
+    use std::io::Write as _;
+    let mut err = std::io::stderr();
+    let _ = writeln!(err);
+    let _ = writeln!(err, "=== ruvllm-esp32 tiny-agent (ADR-165) ===");
+    let _ = writeln!(err, "variant={} role={} chip_id={} sram_kb={}",
+        variant_name(variant), role.as_str(), chip_id.0,
+        variant.sram_bytes() / 1024);
+    let _ = err.flush();
 
-    let config = uart::config::Config::default()
-        .baudrate(Hertz(115200));
+    let mut agent = TinyAgent::new(variant, role, chip_id);
+    let _ = writeln!(err, "[ready] type 'help' for commands");
+    let _ = writeln!(err, "{}", agent.stats_line());
+    let _ = err.flush();
 
-    let uart = UartDriver::new(
-        peripherals.uart0,
-        tx,
-        rx,
-        Option::<gpio::Gpio0>::None,
-        Option::<gpio::Gpio0>::None,
-        &config
-    )?;
-
-    info!("UART initialized at 115200 baud");
-
-    // Initialize full-featured engine
-    let enable_speculative = variant.sram_bytes() >= 512 * 1024;
-    let mut engine = MicroEngine::new(variant, enable_speculative);
-    info!("Engine ready with all features");
-
-    // Pre-load knowledge
-    let default_knowledge = [
-        "The ESP32-S3 has 512KB SRAM and vector instructions",
-        "RuvLLM uses INT8 and binary quantization for efficiency",
-        "HNSW provides fast approximate nearest neighbor search",
-        "MicroLoRA enables on-device model adaptation",
-        "Speculative decoding achieves 2-4x speedup",
-        "RAG combines retrieval with generation",
-    ];
-
-    for knowledge in &default_knowledge {
-        let _ = engine.add_knowledge(knowledge);
+    use std::io::{self, BufRead};
+    let stdin = io::stdin();
+    for line in stdin.lock().lines() {
+        let line = match line { Ok(l) => l, Err(_) => continue };
+        let resp = process_command(line.trim(), &mut agent);
+        let _ = writeln!(err, "{}", resp.as_str());
+        let _ = err.flush();
     }
-    info!("Loaded {} default knowledge entries", engine.stats().knowledge_entries);
 
-    let startup = "\r\n\
-        ════════════════════════════════════════════\r\n\
-        RuvLLM ESP32 Full-Feature v0.2\r\n\
-        ════════════════════════════════════════════\r\n\
-        Features: Binary Quant, PQ, LoRA, HNSW, RAG\r\n\
-                  Semantic Memory, Anomaly Detection\r\n\
-                  Speculative Decoding, Federation\r\n\
-        ════════════════════════════════════════════\r\n\
-        Type 'help' for commands\r\n\
-        > ";
-    uart.write(startup.as_bytes())?;
-
-    let mut cmd_buffer: HVec<u8, 256> = HVec::new();
-
-    loop {
-        let mut byte = [0u8; 1];
-
-        if uart.read(&mut byte, 10).is_ok() && byte[0] != 0 {
-            let c = byte[0];
-
-            if c == b'\r' || c == b'\n' {
-                if !cmd_buffer.is_empty() {
-                    let cmd_str: HString<256> = cmd_buffer.iter()
-                        .map(|&b| b as char)
-                        .collect();
-
-                    uart.write(b"\r\n")?;
-
-                    let response = process_command(cmd_str.as_str(), &mut engine);
-                    uart.write(response.as_bytes())?;
-                    uart.write(b"\r\n> ")?;
-
-                    cmd_buffer.clear();
-                }
-            } else if c == 127 || c == 8 {
-                if !cmd_buffer.is_empty() {
-                    cmd_buffer.pop();
-                    uart.write(b"\x08 \x08")?;
-                }
-            } else if c >= 32 && c < 127 {
-                if cmd_buffer.len() < 255 {
-                    let _ = cmd_buffer.push(c);
-                    uart.write(&[c])?;
-                }
-            }
-        }
-    }
+    // stdin closed; keep the device alive.
+    loop { std::thread::sleep(std::time::Duration::from_secs(60)); }
 }
 
-// Host testing main (for development)
 #[cfg(all(not(feature = "esp32"), feature = "host-test"))]
 fn main() {
-    println!("RuvLLM ESP32 Host Test Mode");
-    println!("This is for development testing only.");
+    use std::io::{self, BufRead, Write};
 
-    let variant = Esp32Variant::Esp32S3;
-    println!("Simulating: {:?} ({} KB SRAM)", variant, variant.sram_bytes() / 1024);
+    // Allow `RUVLLM_VARIANT` / `RUVLLM_ROLE` to drive host smoke tests.
+    let variant = std::env::var("RUVLLM_VARIANT")
+        .ok()
+        .and_then(|s| parse_variant(&s))
+        .unwrap_or(Esp32Variant::Esp32S3);
+    let role = std::env::var("RUVLLM_ROLE")
+        .ok()
+        .and_then(|s| Role::parse(&s))
+        .unwrap_or_else(|| Role::default_for(variant));
+    let chip_id = ChipId(std::env::var("RUVLLM_CHIP_ID")
+        .ok().and_then(|s| s.parse().ok()).unwrap_or(0));
 
-    let mut engine = MicroEngine::new(variant, true);
+    let mut agent = TinyAgent::new(variant, role, chip_id);
 
-    // Add some knowledge
-    let _ = engine.add_knowledge("Test knowledge entry 1");
-    let _ = engine.add_knowledge("Another test entry");
+    println!("=== ruvllm-esp32 tiny-agent (ADR-165) — host-test ===");
+    println!("variant={} role={} chip_id={} sram_kb={}",
+        variant_name(variant), role.as_str(), chip_id.0, variant.sram_bytes() / 1024);
+    println!("type 'help' for commands. EOF to exit.");
 
-    // Generate tokens
-    let tokens: HVec<u16, 8> = [b'H' as u16, b'e' as u16, b'l' as u16, b'l' as u16, b'o' as u16]
-        .iter().copied().collect();
-    let output = engine.generate(&tokens, 5);
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+    let mut out = stdout.lock();
+    let _ = write!(out, "> "); let _ = out.flush();
 
-    println!("Generated {} tokens", output.len());
-    println!("Stats: {:?}", engine.stats());
+    for line in stdin.lock().lines() {
+        let line = match line { Ok(l) => l, Err(_) => break };
+        let resp = process_command(&line, &mut agent);
+        println!("{}", resp.as_str());
+        let _ = write!(out, "> "); let _ = out.flush();
+    }
 }
 
-// WASM entry point
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub fn wasm_init() -> String {
-    "RuvLLM ESP32 WASM Module Initialized".to_string()
+    "ruvllm-esp32 tiny-agent (ADR-165) WASM shim".to_string()
 }
 
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
-pub fn wasm_generate(prompt: &str) -> String {
-    format!("Generated from: {}", prompt)
+pub fn wasm_command(cmd: &str) -> String {
+    let mut agent = TinyAgent::new(Esp32Variant::Esp32S3, Role::HnswIndexer, ChipId(0));
+    let r = process_command(cmd, &mut agent);
+    r.as_str().to_string()
 }
 
-// Default main for other builds
 #[cfg(all(not(feature = "esp32"), not(feature = "host-test"), not(feature = "wasm")))]
 fn main() {
-    println!("RuvLLM ESP32 Flash");
-    println!("Build with --features esp32 for ESP32 target");
-    println!("Build with --features host-test for development");
-    println!("Build with --features wasm for WebAssembly");
+    eprintln!("ruvllm-esp32 tiny-agent (ADR-165)");
+    eprintln!("Build with one of: --features esp32 | --features host-test | --features wasm");
 }

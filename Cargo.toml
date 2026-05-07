@@ -6,7 +6,17 @@ exclude = ["crates/micro-hnsw-wasm", "crates/ruvector-hyperbolic-hnsw", "crates/
     # versions. Keep it out of default workspace builds so `cargo build --workspace`
     # works in stock environments. Build it explicitly with `cargo build -p ruvector-postgres`
     # after running pgrx init.
-    "crates/ruvector-postgres"]
+    "crates/ruvector-postgres",
+    # Iter 219 (closes ADR-178 Gap E folded into Gap B): the hailo
+    # crates rejoined the workspace once the iter-218 ruvector-core
+    # path dep + EmbeddingProvider impls landed. The `hailo` feature
+    # stays opt-in (only `cargo build --features hailo,cpu-fallback`
+    # pulls libhailort + candle), so workspace builds on stock x86
+    # still compile without Pi-specific tooling.
+    # ruos-thermal: Pi 5 thermal supervisor skeleton (ADR-174). Standalone
+    # for now; joins workspace once daemon mode + Unix socket protocol
+    # land in iters 92-97.
+    "crates/ruos-thermal"]
 members = [
     # "crates/ruvector-acorn",
     # "crates/ruvector-acorn-wasm",
@@ -51,6 +61,14 @@ members = [
     # "crates/ruvector-mincut-gated-transformer-wasm",
     # NOTE: ruvector-postgres is in workspace `exclude` (pgrx env requirement).
     # "crates/ruvector-nervous-system",
+    # Iter 219 — hailo backend rejoined the workspace (closes
+    # ADR-178 Gap E folded into Gap B). All three build clean on
+    # x86 with default features; opting into the actual NPU path
+    # requires `--features hailo` on a Pi 5 + AI HAT+.
+    # "crates/hailort-sys",
+    # "crates/ruvector-hailo",
+    # "crates/ruvector-mmwave",
+    # "crates/ruvector-hailo-cluster",
     # "examples/refrag-pipeline",
     # "examples/scipix",
     # "examples/google-cloud",
@@ -209,11 +227,13 @@ members = [
     # "examples/real-eeg-analysis",
     # Multi-seizure cross-patient analysis: all 7 chb01 seizures
     # "examples/real-eeg-multi-seizure",
+    # ruvllm sparse attention kernel for Hailo-10H cluster (ADR-183 – ADR-190)
+    # "crates/ruvllm_sparse_attention",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "2.2.0"
+version = "2.2.2"
 edition = "2021"
 rust-version = "1.77"
 license = "MIT"
@@ -236,18 +256,18 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 
 # Node.js bindings
-napi = { version = "3.8.5", default-features = false, features = ["napi9", "async", "tokio_rt"] }
-napi-derive = "3.5.4"
+napi = { version = "3.8.6", default-features = false, features = ["napi9", "async", "tokio_rt"] }
+napi-derive = "3.5.5"
 
 # WASM
-wasm-bindgen = "0.2.118"
-wasm-bindgen-futures = "0.4.68"
-js-sys = "0.3.95"
-web-sys = { version = "0.3.95", features = ["Worker", "MessagePort", "console"] }
+wasm-bindgen = "0.2.121"
+wasm-bindgen-futures = "0.4.71"
+js-sys = "0.3.98"
+web-sys = { version = "0.3.98", features = ["Worker", "MessagePort", "console"] }
 getrandom = { version = "0.4.2", features = ["wasm_js"] }
 
 # Async runtime
-tokio = { version = "1.52.1", features = ["rt-multi-thread", "sync", "macros"] }
+tokio = { version = "1.52.2", features = ["rt-multi-thread", "sync", "macros"] }
 futures = "0.3.32"
 
 # Error handling and utilities
@@ -280,9 +300,9 @@ mockall = "0.14.0"
 lean-agentic = "=0.1.0"
 
 # Performance
-dashmap = "6.1"
-parking_lot = "0.12"
-once_cell = "1.20"
+dashmap = "6.1.0"
+parking_lot = "0.12.5"
+once_cell = "1.21.4"
 
 [profile.release]
 opt-level = 3

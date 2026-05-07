@@ -5,6 +5,87 @@ All notable changes to RuVector will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [hailo-backend] - 2026-05-03
+
+Branch-only entry; not yet released to a versioned tag. 38 iters /
+45 commits arc covering iter 133-171 to land NPU-accelerated
+embedding inference on Pi 5 + AI HAT+ end-to-end.
+
+### Added
+
+- **NPU acceleration via Hailo-8** (ADR-176, iters 158-163). New
+  modules `hef_pipeline.rs`, `host_embeddings.rs`, `hef_embedder.rs`
+  in `ruvector-hailo`. `HailoEmbedder` auto-detects `model.hef` +
+  safetensors trio and routes through the NPU; falls back to
+  candle-on-CPU when HEF is absent.
+- **First-known all-MiniLM-L6-v2 HEF for Hailo-8** — published as
+  GitHub Release `hailo-encoder-v0.1.0-iter156b` (15.7 MB, sha256
+  `cdbc89...`). Compiled iter 156b after working around four
+  distinct Hailo Dataflow Compiler v3.33 SDK bugs from user-space
+  (KeyError, AccelerasValueError, ElementwiseAddDirectOp Keras
+  serialize via `acceleras` Layer monkey-patch, RGB-align via
+  single-input encoder form).
+- **`deploy/download-encoder-hef.sh`** — sha256-pinned downloader
+  for the HEF artifact, matches the iter-134
+  `download-cpu-fallback-model.sh` pattern.
+- **`deploy/compile-encoder-hef.py`** — Python SDK driver for the
+  HEF compile pipeline, replaces the iter-131 CLI invocations that
+  hit the `hailo` CLI's `-y` auto-accept-recommendation bug.
+- **`deploy/export-minilm-encoder-onnx.py`** — torch.onnx.export
+  helper that strips the BERT embedding lookup so the encoder
+  block compiles cleanly on Hailo-8.
+- **iter-167 ranking-aware startup self-test** — worker now
+  embeds three reference phrases at boot and checks
+  `sim(close) > sim(far)`; refuses to serve if the encoder is
+  producing nonsense vectors.
+- **Pi 4 / Pi 5-without-HAT deploy** as a first-class target
+  (ADR-177). cpu-fallback is fully hardware-agnostic across
+  aarch64.
+- **iter-147 cpu-fallback embedder pool** —
+  `RUVECTOR_CPU_FALLBACK_POOL_SIZE=N` runs N parallel BertModel
+  instances behind try-lock dispatch. Measured 1.75× throughput
+  on x86 release, 4× on Pi 5 expected.
+- **iter-143 fingerprint integrity** — `compute_fingerprint` now
+  hashes the safetensors+tokenizer+config trio so cpu-fallback
+  workers get integrity-checked by the cluster.
+- **iter-141 cross-build with `--with-worker`** — produces an
+  aarch64 cpu-fallback worker binary in one command on x86.
+
+### Performance
+
+Measured on cognitum-v0 (Pi 5 + AI HAT+) at concurrency=4 via
+cluster-bench:
+
+| Path | Throughput | p50 latency | Δ vs cpu-fallback |
+|---|---:|---:|---:|
+| cpu-fallback (Pi 5) | 7.0 / sec | 572 ms | — |
+| NPU HEF (iter 163) | **67.3 / sec** | **57 ms** | **9.6×** |
+| cache hit (in-process) | **15.86 M / sec** | <1 µs | **226,000×** |
+
+Saturation test (iter 170): 60s burst at C=100 — Pi never OOMs,
+worker RSS stable at 91 MB, tonic-level backpressure correctly
+drops excess requests with `ResourceExhausted`.
+
+### Documentation
+
+- **ADR-167** updated: NPU is now production-default
+- **ADR-173** updated: ruvllm-hailo upstream embedding seam is
+  NPU-accelerated transparently
+- **ADR-175** Option A status flipped to "production default"
+- **ADR-176** new EPIC tracking the full integration arc
+- **ADR-177** new — Pi 4 / no-HAT deploy
+- Cluster README now has an Operator QUICKSTART covering all
+  three deploy paths
+
+### Internal
+
+- iter-153 `acceleras` Keras-registration monkey-patch — the
+  breakthrough that unblocked the entire HEF compile pipeline.
+  `compile-encoder-hef.py` walks every module under
+  `hailo_model_optimization.acceleras` at import time and applies
+  `keras.saving.register_keras_serializable()` to every
+  `keras.layers.Layer` subclass it finds.
+
 ## [2.0.5] - 2026-02-26
 
 ### Fixed

@@ -1,19 +1,16 @@
-# RuvLLM ESP32 SDK Configuration
+# Base sdkconfig defaults shared by all ESP32 variants (ADR-165 §2.5).
+# Per-variant tweaks live in `sdkconfig.defaults.<target>`.
 
-# Memory optimization
-CONFIG_ESP32_DEFAULT_CPU_FREQ_240=y
+# Memory
 CONFIG_SPIRAM_SUPPORT=n
 
 # Logging
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
 
-# Console UART
-CONFIG_ESP_CONSOLE_UART_DEFAULT=y
-CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
+# Stack — TinyAgent allocates HNSW/RAG/etc. on stack; per-variant files
+# may bump this further.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=98304
 
-# Stack size
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
-
-# Disable unused features to save memory
+# Trim
 CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=4096
 CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=2048

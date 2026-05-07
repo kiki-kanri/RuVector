@@ -198,6 +198,32 @@ pub enum JsTemporalGranularity {
     Yearly,
 }
 
+/// Options for deleteNode
+#[napi(object)]
+#[derive(Debug, Clone, Default)]
+pub struct JsDeleteNodeOptions {
+    /// If true, all incident hyperedges are removed along with the node
+    pub cascade: Option<bool>,
+}
+
+/// Result of deleting a node (with optional cascade)
+#[napi(object)]
+#[derive(Debug, Clone)]
+pub struct JsDeleteNodeResult {
+    /// Whether the node existed and was deleted
+    pub deleted_node: bool,
+    /// Number of incident edges/hyperedges removed (cascade only)
+    pub deleted_edges: u32,
+}
+
+/// Result of deleting a single edge or hyperedge
+#[napi(object)]
+#[derive(Debug, Clone)]
+pub struct JsDeleteResult {
+    /// Whether the record existed and was deleted
+    pub deleted: bool,
+}
+
 /// Temporal hyperedge
 #[napi(object)]
 #[derive(Clone)]

@@ -1,7 +1,27 @@
 [build]
-target = "xtensa-esp32-espidf"
+target = "xtensa-esp32s3-espidf"
 
+# ldproxy expands the link line to include the ESP-IDF + FreeRTOS static libs.
+# esp-idf-sys's build.rs emits `--ldproxy-linker=...` automatically; do not
+# override `rustflags` here or you'll lose those flags.
+# One block per supported variant (ADR-165 §2.5).
 [target.xtensa-esp32-espidf]
+linker = "ldproxy"
+runner = "espflash flash --monitor"
+
+[target.xtensa-esp32s2-espidf]
+linker = "ldproxy"
+runner = "espflash flash --monitor"
+
+[target.xtensa-esp32s3-espidf]
+linker = "ldproxy"
+runner = "espflash flash --monitor"
+
+[target.riscv32imc-esp-espidf]
+linker = "ldproxy"
+runner = "espflash flash --monitor"
+
+[target.riscv32imac-esp-espidf]
 linker = "ldproxy"
 runner = "espflash flash --monitor"
 

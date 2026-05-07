@@ -1,35 +1,47 @@
-# RuvLLM ESP32 - Tiny LLM Inference Engine for ESP32 Microcontrollers
+# RuvLLM ESP32 — Tiny RuvLLM/RuVector Agents on Heterogeneous ESP32 SoCs
 
 [![crates.io](https://img.shields.io/crates/v/ruvllm-esp32.svg)](https://crates.io/crates/ruvllm-esp32)
 [![npm](https://img.shields.io/npm/v/ruvllm-esp32.svg)](https://www.npmjs.com/package/ruvllm-esp32)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Run AI locally on ESP32 microcontrollers** - A complete, production-ready LLM inference engine with INT8/Binary quantization, HNSW vector search, RAG (Retrieval-Augmented Generation), and multi-chip federation support. No cloud required.
+**See [ADR-165](../../docs/adr/ADR-165-tiny-ruvllm-agents-on-esp32-soCs.md) for the full design.**
 
-## Why RuvLLM ESP32?
+Each ESP32 chip runs **one tiny-agent role** drawn from the ruvllm/ruvector primitive surface. Per ADR-165 §2.1, the canonical roles are:
 
-Run AI directly on microcontrollers without cloud dependencies:
+| Role | Default variant | Primitives |
+|---|---|---|
+| `HnswIndexer` | ESP32-C3 | `MicroHNSW` + `HashEmbedder` |
+| `RagRetriever` | ESP32 | `MicroRAG` + `MicroHNSW` |
+| `AnomalySentinel` | ESP32-S2 | `AnomalyDetector` |
+| `MemoryArchivist` | ESP32-C6 | `SemanticMemory` (type-tagged) |
+| `LoraAdapter` | ESP32-S3 | `MicroLoRA` rank-1/2 |
+| `SpeculativeDrafter` | ESP32-S3 | `SpeculativeDecoder` federation drafter |
+| `PipelineRelay` | any | `PipelineNode { Head/Middle/Tail }` |
 
-- **Privacy**: Data never leaves the device
-- **Latency**: No network round-trips (2-5ms/token)
-- **Cost**: Zero API fees, runs on $4 hardware
-- **Offline**: Works without internet connectivity
-- **Edge AI**: Perfect for IoT, robotics, wearables
+Chips federate over UART / SPI / ESP-NOW using `FederationMessage` (`MAX_FEDERATION_SIZE = 8`).
 
-## Features at a Glance
+> **Honest scope.** This example does **not** implement transformer inference at MCU SRAM scale. Real model inference on ESP32 is ADR-090's PSRAM path (ESP32-P4, 8 MB). The "INT8 transformer in 4 KB" framing in the previous README was the gap reported in [issue #409](https://github.com/ruvnet/ruvector/issues/409) and is removed here. What this example *does* ship is the federation-ready primitive layer: HNSW kNN, RAG retrieval, semantic memory, anomaly detection, MicroLoRA rank-1/2 adaptation, and the federation message bus — all `no_std` and all individually exercised on real hardware.
 
-| Category | Features |
-|----------|----------|
-| **Inference** | INT8 quantized transformers, 2-5ms/token @ 240MHz |
-| **Compression** | Binary quantization (32x), Product quantization (8-32x) |
-| **Adaptation** | MicroLoRA on-device fine-tuning (2KB overhead) |
-| **Attention** | Sparse patterns: sliding window, strided, BigBird |
-| **Vector Search** | HNSW index with 1000+ vectors in ~20KB RAM |
-| **Memory** | Semantic memory with context-aware retrieval + TTL |
-| **RAG** | Retrieval-Augmented Generation for knowledge bases |
-| **Anomaly** | Statistical outlier detection via embeddings |
-| **Speedup** | Speculative decoding (2-4x potential) |
-| **Scaling** | Multi-chip federation with pipeline/tensor parallelism |
+## Why a tiny agent per chip
+
+- **Privacy** — data never leaves the device
+- **Latency** — local kNN / recall / anomaly check in <10 ms
+- **Cost** — runs on $4 hardware (per role)
+- **Offline** — no internet required for the primitives in-tree
+- **Composable** — chips federate; tomorrow's ESP32-P4 PSRAM "real model" (ADR-090) joins the same federation as the drafter
+
+## Primitive surface
+
+| Category | What ships in `lib.rs` |
+|---|---|
+| **Vector search** | `MicroHNSW<DIM, CAPACITY>` with INT8 vectors |
+| **Quantization** | `BinaryVector<N>` (32× compress), `ProductQuantizer<M,K,D>` (8–32×) |
+| **Adaptation** | `MicroLoRA` rank-1/2, `LoRAStack<NUM_LAYERS>` |
+| **Sparse attention masks** | `SparseAttention { sliding_window, strided, big_bird }` |
+| **Memory** | `SemanticMemory` (type-tagged), `MicroRAG` (knowledge entries + retrieval) |
+| **Anomaly** | `AnomalyDetector` over embedding drift |
+| **Federation** | `PipelineNode`, `FederationMessage`, `SpeculativeDecoder`, `CommunicationBus { Spi, I2c, Uart, EspNow, Parallel }` |
+| **Embedder (ADR-074 Tier 1)** | `hash_embed(text)` — FNV-1a + char bigrams + integer-normalize, no float, no model |
 
 ## Supported Hardware
 
