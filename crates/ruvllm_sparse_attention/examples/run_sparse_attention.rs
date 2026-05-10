@@ -1,6 +1,8 @@
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use ruvllm_sparse_attention::{AttentionBackend, SparseAttentionConfig, SubquadraticSparseAttention, Tensor3};
+use ruvllm_sparse_attention::{
+    AttentionBackend, SparseAttentionConfig, SubquadraticSparseAttention, Tensor3,
+};
 
 fn random_tensor(seq: usize, heads: usize, dim: usize, seed: u64) -> Tensor3 {
     let mut rng = StdRng::seed_from_u64(seed);
@@ -27,7 +29,7 @@ fn main() {
         causal: true,
         use_log_stride: true,
         use_landmarks: true,
-            sort_candidates: false,
+        sort_candidates: false,
     })
     .unwrap();
 
@@ -38,5 +40,8 @@ fn main() {
     println!("shape = {:?}", out.shape());
     println!("dense causal edges = {}", dense_edges);
     println!("sparse edges = {}", sparse_edges);
-    println!("edge reduction = {:.2}x", dense_edges as f64 / sparse_edges as f64);
+    println!(
+        "edge reduction = {:.2}x",
+        dense_edges as f64 / sparse_edges as f64
+    );
 }

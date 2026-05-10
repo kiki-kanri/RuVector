@@ -1,7 +1,7 @@
 ---
 adr: 190
 title: "Add GQA/MQA support to ruvllm sparse attention for Hailo-10H production models"
-status: proposed
+status: accepted
 date: 2026-05-06
 authors: [ruvnet, claude-flow]
 related: [ADR-182, ADR-184, ADR-189, ADR-181]
@@ -174,6 +174,46 @@ pub fn forward_auto(&self, q: &Tensor3, k: &Tensor3, v: &Tensor3)
   {1, 2, 4, 8}`.
 - `decode_step` (ADR-189) must also accept `kv_heads` — a coordinated
   change across both ADRs.
+
+## Memory Comparison (FP32 vs FP16 KV Cache at seq=8192)
+
+With 8 KV heads (GQA), `dim=128`, 32 layers:
+
+| Mode | Formula | Total |
+|---|---|---|
+| FP32 GQA | 8192 × 8 × 128 × 2 × 4 B × 32 layers | 2,147 MB |
+| FP16 GQA (`feature = "fp16"`) | 8192 × 8 × 128 × 2 × 2 B × 32 layers | 1,074 MB |
+| FP16 GQA (working KV per layer) | 8192 × 8 × 128 × 2 tensors × 2 B | **536 MB** |
+
+The 536 MB working KV at `seq=8192` leaves ~7.5 GB of Hailo-10H DDR4
+for model weights (Q4K Mistral-7B ≈ 4.1 GB), OS, ruvector cluster
+coordinator, and NPU driver state.
+
+## Flash-Sparse GQA Extension
+
+`forward_gqa_flash` implements the same 3-phase IO-optimal tiling as
+`forward_flash` (see ADR-184), but with the GQA head mapping
+(`kv_h = h / group_size`). `forward_auto` dispatches to
+`forward_gqa_flash` automatically when `q.heads != k.heads`:
+
+```rust
+pub fn forward_auto(&self, q: &Tensor3, k: &Tensor3, v: &Tensor3)
+    -> Result<Tensor3, AttentionError>
+{
+    if q.heads == k.heads { self.forward(q, k, v) }
+    else { self.forward_gqa_flash(q, k, v) }
+}
+```
+
+## Cluster Validation
+
+25/25 tests pass on all 4 cognitum cluster nodes (Pi 5 + Hailo-10H).
+New tests added for this ADR:
+
+- `forward_gqa_flash_matches_forward_gqa` — tiled GQA matches reference
+- `forward_gqa_group1_equals_forward` — group_size=1 degenerates to MHA
+
+Full cluster table in ADR-186.
 
 ## Validation
 

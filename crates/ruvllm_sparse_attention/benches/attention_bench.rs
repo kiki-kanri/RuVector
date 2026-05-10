@@ -35,7 +35,11 @@ fn bench_sparse(c: &mut Criterion) {
         .unwrap();
 
         group.bench_function(format!("seq_{}", seq), |b| {
-            b.iter(|| attention.forward(black_box(&q), black_box(&k), black_box(&v)).unwrap())
+            b.iter(|| {
+                attention
+                    .forward(black_box(&q), black_box(&k), black_box(&v))
+                    .unwrap()
+            })
         });
     }
 
@@ -92,5 +96,10 @@ fn bench_flash_sparse(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_sparse, bench_flash_sparse, bench_dense_reference);
+criterion_group!(
+    benches,
+    bench_sparse,
+    bench_flash_sparse,
+    bench_dense_reference
+);
 criterion_main!(benches);

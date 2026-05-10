@@ -1,7 +1,7 @@
 ---
 adr: 189
 title: "KV cache incremental decode path for ruvllm sparse attention on Hailo cluster"
-status: proposed
+status: accepted
 date: 2026-05-06
 authors: [ruvnet, claude-flow]
 related: [ADR-180, ADR-181, ADR-182, ADR-184, ADR-185]
@@ -224,6 +224,31 @@ A 7.5× reduction in per-step DMA transfer at `seq=2048`, scaling to
   full recompute).
 - `forward()` (full batch prefill) and `decode_step()` (single-token)
   are separate code paths; divergence must be guarded by shared tests.
+
+## SOTA Extensions Delivered
+
+Alongside `KvCache` / `decode_step`, the following extensions were
+shipped as part of this ADR's delivery scope:
+
+- **`IncrementalLandmarks` (Welford online update)**: block means updated
+  in O(H×D) per token append instead of O(T×H×D) full rebuild. At
+  `seq=4096` the difference is a 128-byte update vs a 512 KB rebuild.
+- **H2O heavy-hitter eviction (`evict_and_append`)**: enables generation
+  past `max_seq` by evicting the least-attended non-recent, non-global
+  token. Mirrors the H2O policy (Zhang et al. 2023).
+- **`decode_batch`**: processes `q.seq ≥ 1` queries against the cache in
+  one call, enabling speculative decode.
+- **FP16 KV cache (`KvCacheF16`, `feature = "fp16"`)**: halves KV memory
+  (1.07 GB at seq=8192 vs 2.15 GB FP32). Pairs with ADR-190 GQA path
+  to fit Mistral-7B in Hailo-10H 8 GB DDR4 at `seq=8192`:
+  `8192 × 8 KV heads × 128 × 2 tensors × 2 bytes × 32 layers = 536 MB`.
+- **`sort_candidates` flag**: ascending sort of candidate indices adds a
+  10% cache-locality win on Pi 5 (small L3); defaults `false` on x86.
+
+## Cluster Validation
+
+All 25 tests (including decode/eviction path) passed on all 4 cognitum
+cluster nodes — see ADR-186 for the full validation table.
 
 ## Verification
 

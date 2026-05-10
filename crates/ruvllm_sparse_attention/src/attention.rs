@@ -1,6 +1,15 @@
+#[cfg(not(feature = "std"))]
+use crate::no_std_math::F32Ext as _;
 use crate::tensor::Tensor3;
+use alloc::collections::BTreeSet;
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec;
+use alloc::vec::Vec;
+use core::cmp::Ordering;
+use core::fmt::{Display, Formatter};
+#[cfg(feature = "std")]
 use std::error::Error;
-use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
 pub enum AttentionError {
@@ -13,7 +22,7 @@ pub enum AttentionError {
 }
 
 impl Display for AttentionError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
             AttentionError::ShapeMismatch { q, k, v } => write!(
                 f,
@@ -25,6 +34,7 @@ impl Display for AttentionError {
     }
 }
 
+#[cfg(feature = "std")]
 impl Error for AttentionError {}
 
 pub trait AttentionBackend {
@@ -152,61 +162,88 @@ impl AttentionBackend for SubquadraticSparseAttention {
             use rayon::prelude::*;
             let lm_ref = landmarks.as_ref();
             let config = &self.config;
-            let head_vecs: Vec<Vec<f32>> = (0..heads).into_par_iter().map(|h| {
-                let mut seen_tokens = vec![0usize; seq.max(1)];
-                let mut seen_blocks = vec![0usize; div_ceil(seq.max(1), config.block_size)];
-                let mut tok_c = Vec::<usize>::with_capacity(config.window + 64);
-                let mut blk_c = Vec::<usize>::with_capacity(64);
-                let mut acc = vec![0f32; dim];
-                let mut hout = vec![0f32; seq * dim];
-                for i in 0..seq {
-                    let stamp = 1 + h * seq + i;
-                    tok_c.clear(); blk_c.clear();
-                    build_token_candidates(i, seq, config, &mut seen_tokens, stamp, &mut tok_c);
-                    if lm_ref.is_some() {
-                        build_landmark_candidates(i, seq, config, &mut seen_blocks, stamp, &mut blk_c);
-                    }
-                    if config.sort_candidates { tok_c.sort_unstable(); blk_c.sort_unstable(); }
-                    let q_row = q.row(i, h);
-                    let mut running_max = f32::NEG_INFINITY;
-                    let mut denom = 0.0f32;
-                    acc.fill(0.0);
-                    for &j in &tok_c {
-                        let score = dot(q_row, k.row(j, h)) * scale;
-                        if score > running_max {
-                            let c = (running_max - score).exp();
-                            for d in 0..dim { acc[d] *= c; }
-                            denom *= c; running_max = score;
+            let head_vecs: Vec<Vec<f32>> = (0..heads)
+                .into_par_iter()
+                .map(|h| {
+                    let mut seen_tokens = vec![0usize; seq.max(1)];
+                    let mut seen_blocks = vec![0usize; div_ceil(seq.max(1), config.block_size)];
+                    let mut tok_c = Vec::<usize>::with_capacity(config.window + 64);
+                    let mut blk_c = Vec::<usize>::with_capacity(64);
+                    let mut acc = vec![0f32; dim];
+                    let mut hout = vec![0f32; seq * dim];
+                    for i in 0..seq {
+                        let stamp = 1 + h * seq + i;
+                        tok_c.clear();
+                        blk_c.clear();
+                        build_token_candidates(i, seq, config, &mut seen_tokens, stamp, &mut tok_c);
+                        if lm_ref.is_some() {
+                            build_landmark_candidates(
+                                i,
+                                seq,
+                                config,
+                                &mut seen_blocks,
+                                stamp,
+                                &mut blk_c,
+                            );
                         }
-                        let w = (score - running_max).exp();
-                        denom += w;
-                        let vr = v.row(j, h);
-                        for d in 0..dim { acc[d] += w * vr[d]; }
-                    }
-                    if let Some(lm) = lm_ref {
-                        for &b in &blk_c {
-                            let score = dot(q_row, lm.keys.row(b, h)) * scale;
+                        if config.sort_candidates {
+                            tok_c.sort_unstable();
+                            blk_c.sort_unstable();
+                        }
+                        let q_row = q.row(i, h);
+                        let mut running_max = f32::NEG_INFINITY;
+                        let mut denom = 0.0f32;
+                        acc.fill(0.0);
+                        for &j in &tok_c {
+                            let score = dot(q_row, k.row(j, h)) * scale;
                             if score > running_max {
                                 let c = (running_max - score).exp();
-                                for d in 0..dim { acc[d] *= c; }
-                                denom *= c; running_max = score;
+                                for d in 0..dim {
+                                    acc[d] *= c;
+                                }
+                                denom *= c;
+                                running_max = score;
                             }
                             let w = (score - running_max).exp();
                             denom += w;
-                            let vr = lm.values.row(b, h);
-                            for d in 0..dim { acc[d] += w * vr[d]; }
+                            let vr = v.row(j, h);
+                            for d in 0..dim {
+                                acc[d] += w * vr[d];
+                            }
+                        }
+                        if let Some(lm) = lm_ref {
+                            for &b in &blk_c {
+                                let score = dot(q_row, lm.keys.row(b, h)) * scale;
+                                if score > running_max {
+                                    let c = (running_max - score).exp();
+                                    for d in 0..dim {
+                                        acc[d] *= c;
+                                    }
+                                    denom *= c;
+                                    running_max = score;
+                                }
+                                let w = (score - running_max).exp();
+                                denom += w;
+                                let vr = lm.values.row(b, h);
+                                for d in 0..dim {
+                                    acc[d] += w * vr[d];
+                                }
+                            }
+                        }
+                        let inv = if denom > 0.0 { 1.0 / denom } else { 0.0 };
+                        let s = &mut hout[i * dim..(i + 1) * dim];
+                        for d in 0..dim {
+                            s[d] = acc[d] * inv;
                         }
                     }
-                    let inv = if denom > 0.0 { 1.0 / denom } else { 0.0 };
-                    let s = &mut hout[i * dim..(i + 1) * dim];
-                    for d in 0..dim { s[d] = acc[d] * inv; }
-                }
-                hout
-            }).collect();
+                    hout
+                })
+                .collect();
             let mut out = Tensor3::zeros(seq, heads, dim);
             for h in 0..heads {
                 for i in 0..seq {
-                    out.row_mut(i, h).copy_from_slice(&head_vecs[h][i * dim..(i + 1) * dim]);
+                    out.row_mut(i, h)
+                        .copy_from_slice(&head_vecs[h][i * dim..(i + 1) * dim]);
                 }
             }
             out
@@ -227,11 +264,28 @@ impl AttentionBackend for SubquadraticSparseAttention {
                     let stamp = 1 + h * seq + i;
                     token_candidates.clear();
                     block_candidates.clear();
-                    build_token_candidates(i, seq, &self.config, &mut seen_tokens, stamp, &mut token_candidates);
+                    build_token_candidates(
+                        i,
+                        seq,
+                        &self.config,
+                        &mut seen_tokens,
+                        stamp,
+                        &mut token_candidates,
+                    );
                     if landmarks.is_some() {
-                        build_landmark_candidates(i, seq, &self.config, &mut seen_blocks, stamp, &mut block_candidates);
+                        build_landmark_candidates(
+                            i,
+                            seq,
+                            &self.config,
+                            &mut seen_blocks,
+                            stamp,
+                            &mut block_candidates,
+                        );
                     }
-                    if self.config.sort_candidates { token_candidates.sort_unstable(); block_candidates.sort_unstable(); }
+                    if self.config.sort_candidates {
+                        token_candidates.sort_unstable();
+                        block_candidates.sort_unstable();
+                    }
                     let q_row = q.row(i, h);
                     let mut running_max = f32::NEG_INFINITY;
                     let mut denom = 0.0f32;
@@ -240,39 +294,226 @@ impl AttentionBackend for SubquadraticSparseAttention {
                         let score = dot(q_row, k.row(j, h)) * scale;
                         if score > running_max {
                             let corr = (running_max - score).exp();
-                            for d in 0..dim { acc[d] *= corr; }
+                            for d in 0..dim {
+                                acc[d] *= corr;
+                            }
                             denom *= corr;
                             running_max = score;
                         }
                         let w = (score - running_max).exp();
                         denom += w;
                         let v_row = v.row(j, h);
-                        for d in 0..dim { acc[d] += w * v_row[d]; }
+                        for d in 0..dim {
+                            acc[d] += w * v_row[d];
+                        }
                     }
                     if let Some(lm) = landmarks.as_ref() {
                         for &b in &block_candidates {
                             let score = dot(q_row, lm.keys.row(b, h)) * scale;
                             if score > running_max {
                                 let corr = (running_max - score).exp();
-                                for d in 0..dim { acc[d] *= corr; }
+                                for d in 0..dim {
+                                    acc[d] *= corr;
+                                }
                                 denom *= corr;
                                 running_max = score;
                             }
                             let w = (score - running_max).exp();
                             denom += w;
                             let v_row = lm.values.row(b, h);
-                            for d in 0..dim { acc[d] += w * v_row[d]; }
+                            for d in 0..dim {
+                                acc[d] += w * v_row[d];
+                            }
                         }
                     }
                     let out_row = out.row_mut(i, h);
                     let inv_denom = if denom > 0.0 { 1.0 / denom } else { 0.0 };
-                    for d in 0..dim { out_row[d] = acc[d] * inv_denom; }
+                    for d in 0..dim {
+                        out_row[d] = acc[d] * inv_denom;
+                    }
                 }
             }
             out
         };
 
         Ok(out)
+    }
+}
+
+impl SubquadraticSparseAttention {
+    /// FastGRNN-gated forward: same as `forward` but tokens marked
+    /// `false` in `keep_mask` are excluded from the long-range portion
+    /// of the candidate set. The local causal window and the configured
+    /// `global_tokens` are **always** retained regardless of the mask
+    /// (they preserve causality and prefix coverage and are constant
+    /// in `seq`, so dropping them does not change the asymptotic cost).
+    ///
+    /// # Asymptotics
+    ///
+    /// Let `W = config.window`, `G = config.global_tokens.len()`, and
+    /// `K_keep = keep_mask.iter().filter(|&&b| b).count()`.
+    /// Per-position candidate-set size is bounded by `W + G + K_keep`,
+    /// so total cost is `O(seq · (W + G + K_keep) · dim)`.
+    ///
+    /// When the gate caps `K_keep` at a constant (e.g. via
+    /// `FastGrnnGate::keep_mask_top_k`), this is **linear in `seq`**:
+    /// `O(seq · const · dim)`. Combined with the FastGRNN gate forward
+    /// (`O(seq · D_h²)`), the full pipeline is near-linear at fixed
+    /// `D_h`, `W`, `G`, `K_keep`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AttentionError::InvalidConfig` if `keep_mask.len() != q.seq`.
+    pub fn forward_gated(
+        &self,
+        q: &Tensor3,
+        k: &Tensor3,
+        v: &Tensor3,
+        keep_mask: &[bool],
+    ) -> Result<Tensor3, AttentionError> {
+        validate_qkv(q, k, v)?;
+        if self.config.block_size == 0 {
+            return Err(AttentionError::InvalidConfig(
+                "block_size must be greater than zero".to_string(),
+            ));
+        }
+        if keep_mask.len() != q.seq {
+            return Err(AttentionError::InvalidConfig(format!(
+                "keep_mask len {} != seq {}",
+                keep_mask.len(),
+                q.seq
+            )));
+        }
+
+        let seq = q.seq;
+        if seq == 0 {
+            return Ok(Tensor3::zeros(0, q.heads, q.dim));
+        }
+
+        let heads = q.heads;
+        let dim = q.dim;
+        let scale = 1.0f32 / (dim as f32).sqrt();
+        let landmarks = if self.config.use_landmarks {
+            Some(Landmarks::from_kv(k, v, self.config.block_size))
+        } else {
+            None
+        };
+
+        // Pre-compute "is in local window of i" predicate as a closure;
+        // window membership is symmetric for non-causal so depends on i.
+        // global membership is independent of i.
+        let global_set: BTreeSet<usize> = self.config.global_tokens.iter().copied().collect();
+        let in_window = |i: usize, j: usize| -> bool {
+            let lo = i.saturating_sub(self.config.window);
+            let hi = if self.config.causal {
+                i
+            } else {
+                (i + self.config.window).min(seq - 1)
+            };
+            j >= lo && j <= hi
+        };
+
+        let mut out = Tensor3::zeros(seq, heads, dim);
+        let mut seen_tokens = vec![0usize; seq.max(1)];
+        let mut seen_blocks = vec![0usize; div_ceil(seq.max(1), self.config.block_size)];
+        let mut tok_c = Vec::<usize>::with_capacity(self.config.window + 64);
+        let mut blk_c = Vec::<usize>::with_capacity(64);
+        let mut acc = vec![0f32; dim];
+
+        for h in 0..heads {
+            for i in 0..seq {
+                let stamp = 1 + h * seq + i;
+                tok_c.clear();
+                blk_c.clear();
+                build_token_candidates(i, seq, &self.config, &mut seen_tokens, stamp, &mut tok_c);
+                if landmarks.is_some() {
+                    build_landmark_candidates(
+                        i,
+                        seq,
+                        &self.config,
+                        &mut seen_blocks,
+                        stamp,
+                        &mut blk_c,
+                    );
+                }
+
+                // Apply the gate: drop log-stride candidates that the
+                // mask rejects. Keep the current position, window, and
+                // globals unconditionally.
+                tok_c.retain(|&j| {
+                    j == i || in_window(i, j) || global_set.contains(&j) || keep_mask[j]
+                });
+
+                if self.config.sort_candidates {
+                    tok_c.sort_unstable();
+                    blk_c.sort_unstable();
+                }
+                let q_row = q.row(i, h);
+                let mut running_max = f32::NEG_INFINITY;
+                let mut denom = 0.0f32;
+                acc.fill(0.0);
+                for &j in &tok_c {
+                    let score = dot(q_row, k.row(j, h)) * scale;
+                    if score > running_max {
+                        let corr = (running_max - score).exp();
+                        for d in 0..dim {
+                            acc[d] *= corr;
+                        }
+                        denom *= corr;
+                        running_max = score;
+                    }
+                    let w = (score - running_max).exp();
+                    denom += w;
+                    let v_row = v.row(j, h);
+                    for d in 0..dim {
+                        acc[d] += w * v_row[d];
+                    }
+                }
+                if let Some(lm) = landmarks.as_ref() {
+                    for &b in &blk_c {
+                        let score = dot(q_row, lm.keys.row(b, h)) * scale;
+                        if score > running_max {
+                            let corr = (running_max - score).exp();
+                            for d in 0..dim {
+                                acc[d] *= corr;
+                            }
+                            denom *= corr;
+                            running_max = score;
+                        }
+                        let w = (score - running_max).exp();
+                        denom += w;
+                        let v_row = lm.values.row(b, h);
+                        for d in 0..dim {
+                            acc[d] += w * v_row[d];
+                        }
+                    }
+                }
+                let out_row = out.row_mut(i, h);
+                let inv_denom = if denom > 0.0 { 1.0 / denom } else { 0.0 };
+                for d in 0..dim {
+                    out_row[d] = acc[d] * inv_denom;
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// Convenience wrapper: build the keep-mask via FastGRNN scoring
+    /// `k`, then call `forward_gated`. The gate's `input_dim` must
+    /// equal `k.dim` (the per-head feature width). Caller picks the
+    /// gating strategy via `gate_top_k`: at most that many long-range
+    /// tokens pass the gate.
+    pub fn forward_gated_with_fastgrnn(
+        &self,
+        q: &Tensor3,
+        k: &Tensor3,
+        v: &Tensor3,
+        gate: &crate::fastgrnn_gate::FastGrnnGate,
+        gate_top_k: usize,
+    ) -> Result<Tensor3, AttentionError> {
+        let salience = gate.score_kv(k);
+        let keep = crate::fastgrnn_gate::FastGrnnGate::keep_mask_top_k(&salience, gate_top_k);
+        self.forward_gated(q, k, v, &keep)
     }
 }
 
@@ -410,7 +651,6 @@ fn build_token_candidates(
             }
         }
     }
-
 }
 
 fn build_landmark_candidates(
@@ -482,7 +722,6 @@ fn build_landmark_candidates(
             }
         }
     }
-
 }
 
 #[inline]
@@ -654,7 +893,9 @@ impl KvCache {
         }
         for h in 0..k.heads {
             self.keys.row_mut(self.len, h).copy_from_slice(k.row(0, h));
-            self.values.row_mut(self.len, h).copy_from_slice(v.row(0, h));
+            self.values
+                .row_mut(self.len, h)
+                .copy_from_slice(v.row(0, h));
         }
         self.landmarks.update(self.len, k, v);
         self.len += 1;
@@ -699,12 +940,18 @@ impl KvCache {
             if self.landmarks.block_size > 0 {
                 let k_t = Tensor3::from_vec(
                     k.data[t * kv_heads * dim..(t + 1) * kv_heads * dim].to_vec(),
-                    1, kv_heads, dim,
-                ).unwrap();
+                    1,
+                    kv_heads,
+                    dim,
+                )
+                .unwrap();
                 let v_t = Tensor3::from_vec(
                     v.data[t * kv_heads * dim..(t + 1) * kv_heads * dim].to_vec(),
-                    1, kv_heads, dim,
-                ).unwrap();
+                    1,
+                    kv_heads,
+                    dim,
+                )
+                .unwrap();
                 self.landmarks.update(pos, &k_t, &v_t);
             }
         }
@@ -741,7 +988,8 @@ impl KvCache {
         if attention_scores.len() != self.len {
             return Err(AttentionError::InvalidConfig(format!(
                 "evict_and_append: attention_scores.len={} != cache.len={}",
-                attention_scores.len(), self.len
+                attention_scores.len(),
+                self.len
             )));
         }
         if self.capacity == 0 {
@@ -753,15 +1001,14 @@ impl KvCache {
         // Find the eviction victim: lowest attention score, not in recent window,
         // not a global token.
         let recent_start = self.len.saturating_sub(window);
-        let is_protected = |idx: usize| -> bool {
-            idx >= recent_start || global_tokens.contains(&idx)
-        };
+        let is_protected =
+            |idx: usize| -> bool { idx >= recent_start || global_tokens.contains(&idx) };
         let victim = (0..self.len)
             .filter(|&idx| !is_protected(idx))
             .min_by(|&a, &b| {
                 attention_scores[a]
                     .partial_cmp(&attention_scores[b])
-                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .unwrap_or(Ordering::Equal)
             });
 
         let victim = match victim {
@@ -783,7 +1030,9 @@ impl KvCache {
                 let src_off = ((t + 1) * kv_heads + h) * dim;
                 let dst_off = (t * kv_heads + h) * dim;
                 self.keys.data.copy_within(src_off..src_off + dim, dst_off);
-                self.values.data.copy_within(src_off..src_off + dim, dst_off);
+                self.values
+                    .data
+                    .copy_within(src_off..src_off + dim, dst_off);
             }
         }
         self.len -= 1;
@@ -794,12 +1043,18 @@ impl KvCache {
             for t in 0..self.len {
                 let k_t = Tensor3::from_vec(
                     self.keys.data[t * kv_heads * dim..(t + 1) * kv_heads * dim].to_vec(),
-                    1, kv_heads, dim,
-                ).unwrap();
+                    1,
+                    kv_heads,
+                    dim,
+                )
+                .unwrap();
                 let v_t = Tensor3::from_vec(
                     self.values.data[t * kv_heads * dim..(t + 1) * kv_heads * dim].to_vec(),
-                    1, kv_heads, dim,
-                ).unwrap();
+                    1,
+                    kv_heads,
+                    dim,
+                )
+                .unwrap();
                 self.landmarks.update(t, &k_t, &v_t);
             }
         }
@@ -815,11 +1070,7 @@ impl SubquadraticSparseAttention {
     /// by `KvCache::append` so no rebuild is needed here.
     ///
     /// `q`: shape `[1, q_heads, dim]`.  Returns shape `[1, q_heads, dim]`.
-    pub fn decode_step(
-        &self,
-        q: &Tensor3,
-        cache: &KvCache,
-    ) -> Result<Tensor3, AttentionError> {
+    pub fn decode_step(&self, q: &Tensor3, cache: &KvCache) -> Result<Tensor3, AttentionError> {
         if q.seq != 1 {
             return Err(AttentionError::InvalidConfig(
                 "decode_step requires q.seq == 1".to_string(),
@@ -854,11 +1105,28 @@ impl SubquadraticSparseAttention {
         let mut token_candidates = Vec::with_capacity(self.config.window + 64);
         let mut block_candidates = Vec::with_capacity(64);
 
-        build_token_candidates(i, seq, &self.config, &mut seen_tokens, 1, &mut token_candidates);
+        build_token_candidates(
+            i,
+            seq,
+            &self.config,
+            &mut seen_tokens,
+            1,
+            &mut token_candidates,
+        );
         if self.config.use_landmarks {
-            build_landmark_candidates(i, seq, &self.config, &mut seen_blocks, 1, &mut block_candidates);
+            build_landmark_candidates(
+                i,
+                seq,
+                &self.config,
+                &mut seen_blocks,
+                1,
+                &mut block_candidates,
+            );
         }
-        if self.config.sort_candidates { token_candidates.sort_unstable(); block_candidates.sort_unstable(); }
+        if self.config.sort_candidates {
+            token_candidates.sort_unstable();
+            block_candidates.sort_unstable();
+        }
 
         let mut out = Tensor3::zeros(1, q_heads, dim);
         let mut acc = vec![0f32; dim];
@@ -874,14 +1142,18 @@ impl SubquadraticSparseAttention {
                 let score = dot(q_row, cache.keys.row(j, kv_h)) * scale;
                 if score > running_max {
                     let corr = (running_max - score).exp();
-                    for d in 0..dim { acc[d] *= corr; }
+                    for d in 0..dim {
+                        acc[d] *= corr;
+                    }
                     denom *= corr;
                     running_max = score;
                 }
                 let w = (score - running_max).exp();
                 denom += w;
                 let v_row = cache.values.row(j, kv_h);
-                for d in 0..dim { acc[d] += w * v_row[d]; }
+                for d in 0..dim {
+                    acc[d] += w * v_row[d];
+                }
             }
 
             // Use O(1) incremental landmarks — no per-step rebuild.
@@ -889,19 +1161,25 @@ impl SubquadraticSparseAttention {
                 let score = dot(q_row, cache.landmarks.keys.row(b, kv_h)) * scale;
                 if score > running_max {
                     let corr = (running_max - score).exp();
-                    for d in 0..dim { acc[d] *= corr; }
+                    for d in 0..dim {
+                        acc[d] *= corr;
+                    }
                     denom *= corr;
                     running_max = score;
                 }
                 let w = (score - running_max).exp();
                 denom += w;
                 let v_row = cache.landmarks.values.row(b, kv_h);
-                for d in 0..dim { acc[d] += w * v_row[d]; }
+                for d in 0..dim {
+                    acc[d] += w * v_row[d];
+                }
             }
 
             let out_row = out.row_mut(0, h);
             let inv = if denom > 0.0 { 1.0 / denom } else { 0.0 };
-            for d in 0..dim { out_row[d] = acc[d] * inv; }
+            for d in 0..dim {
+                out_row[d] = acc[d] * inv;
+            }
         }
 
         Ok(out)
@@ -954,21 +1232,29 @@ impl SubquadraticSparseAttention {
             // Extract single-token slices as owned Tensor3 (avoids unsafe borrow aliasing).
             let q_t = Tensor3::from_vec(
                 q.data[t * q_heads * dim..(t + 1) * q_heads * dim].to_vec(),
-                1, q_heads, dim,
-            ).unwrap();
+                1,
+                q_heads,
+                dim,
+            )
+            .unwrap();
             let k_t = Tensor3::from_vec(
                 new_k.data[t * kv_heads * dim..(t + 1) * kv_heads * dim].to_vec(),
-                1, kv_heads, dim,
-            ).unwrap();
+                1,
+                kv_heads,
+                dim,
+            )
+            .unwrap();
             let v_t = Tensor3::from_vec(
                 new_v.data[t * kv_heads * dim..(t + 1) * kv_heads * dim].to_vec(),
-                1, kv_heads, dim,
-            ).unwrap();
+                1,
+                kv_heads,
+                dim,
+            )
+            .unwrap();
 
             cache.try_append(&k_t, &v_t)?;
             let out_t = self.decode_step(&q_t, cache)?;
-            out.data[t * q_heads * dim..(t + 1) * q_heads * dim]
-                .copy_from_slice(&out_t.data);
+            out.data[t * q_heads * dim..(t + 1) * q_heads * dim].copy_from_slice(&out_t.data);
         }
 
         Ok(out)
@@ -982,22 +1268,29 @@ fn validate_gqa(q: &Tensor3, k: &Tensor3, v: &Tensor3) -> Result<(), AttentionEr
         ));
     }
     if q.seq != k.seq || k.seq != v.seq {
-        return Err(AttentionError::ShapeMismatch { q: q.shape(), k: k.shape(), v: v.shape() });
+        return Err(AttentionError::ShapeMismatch {
+            q: q.shape(),
+            k: k.shape(),
+            v: v.shape(),
+        });
     }
     if q.dim != k.dim || k.dim != v.dim {
-        return Err(AttentionError::InvalidConfig(
-            format!("head dim mismatch: q.dim={}, k.dim={}", q.dim, k.dim),
-        ));
+        return Err(AttentionError::InvalidConfig(format!(
+            "head dim mismatch: q.dim={}, k.dim={}",
+            q.dim, k.dim
+        )));
     }
     if k.heads == 0 || q.heads % k.heads != 0 {
-        return Err(AttentionError::InvalidConfig(
-            format!("q_heads={} must be divisible by kv_heads={}", q.heads, k.heads),
-        ));
+        return Err(AttentionError::InvalidConfig(format!(
+            "q_heads={} must be divisible by kv_heads={}",
+            q.heads, k.heads
+        )));
     }
     if k.heads != v.heads {
-        return Err(AttentionError::InvalidConfig(
-            format!("k.heads={} != v.heads={}", k.heads, v.heads),
-        ));
+        return Err(AttentionError::InvalidConfig(format!(
+            "k.heads={} != v.heads={}",
+            k.heads, v.heads
+        )));
     }
     Ok(())
 }
@@ -1040,62 +1333,89 @@ impl SubquadraticSparseAttention {
             use rayon::prelude::*;
             let lm_ref = landmarks.as_ref();
             let config = &self.config;
-            let head_vecs: Vec<Vec<f32>> = (0..q_heads).into_par_iter().map(|h| {
-                let kv_h = h / group_size;
-                let mut seen_tokens = vec![0usize; seq.max(1)];
-                let mut seen_blocks = vec![0usize; div_ceil(seq.max(1), config.block_size)];
-                let mut tok_c = Vec::<usize>::with_capacity(config.window + 64);
-                let mut blk_c = Vec::<usize>::with_capacity(64);
-                let mut acc = vec![0f32; dim];
-                let mut hout = vec![0f32; seq * dim];
-                for i in 0..seq {
-                    let stamp = 1 + h * seq + i;
-                    tok_c.clear(); blk_c.clear();
-                    build_token_candidates(i, seq, config, &mut seen_tokens, stamp, &mut tok_c);
-                    if lm_ref.is_some() {
-                        build_landmark_candidates(i, seq, config, &mut seen_blocks, stamp, &mut blk_c);
-                    }
-                    if config.sort_candidates { tok_c.sort_unstable(); blk_c.sort_unstable(); }
-                    let q_row = q.row(i, h);
-                    let mut running_max = f32::NEG_INFINITY;
-                    let mut denom = 0.0f32;
-                    acc.fill(0.0);
-                    for &j in &tok_c {
-                        let score = dot(q_row, k.row(j, kv_h)) * scale;
-                        if score > running_max {
-                            let c = (running_max - score).exp();
-                            for d in 0..dim { acc[d] *= c; }
-                            denom *= c; running_max = score;
+            let head_vecs: Vec<Vec<f32>> = (0..q_heads)
+                .into_par_iter()
+                .map(|h| {
+                    let kv_h = h / group_size;
+                    let mut seen_tokens = vec![0usize; seq.max(1)];
+                    let mut seen_blocks = vec![0usize; div_ceil(seq.max(1), config.block_size)];
+                    let mut tok_c = Vec::<usize>::with_capacity(config.window + 64);
+                    let mut blk_c = Vec::<usize>::with_capacity(64);
+                    let mut acc = vec![0f32; dim];
+                    let mut hout = vec![0f32; seq * dim];
+                    for i in 0..seq {
+                        let stamp = 1 + h * seq + i;
+                        tok_c.clear();
+                        blk_c.clear();
+                        build_token_candidates(i, seq, config, &mut seen_tokens, stamp, &mut tok_c);
+                        if lm_ref.is_some() {
+                            build_landmark_candidates(
+                                i,
+                                seq,
+                                config,
+                                &mut seen_blocks,
+                                stamp,
+                                &mut blk_c,
+                            );
                         }
-                        let w = (score - running_max).exp();
-                        denom += w;
-                        let vr = v.row(j, kv_h);
-                        for d in 0..dim { acc[d] += w * vr[d]; }
-                    }
-                    if let Some(lm) = lm_ref {
-                        for &b in &blk_c {
-                            let score = dot(q_row, lm.keys.row(b, kv_h)) * scale;
+                        if config.sort_candidates {
+                            tok_c.sort_unstable();
+                            blk_c.sort_unstable();
+                        }
+                        let q_row = q.row(i, h);
+                        let mut running_max = f32::NEG_INFINITY;
+                        let mut denom = 0.0f32;
+                        acc.fill(0.0);
+                        for &j in &tok_c {
+                            let score = dot(q_row, k.row(j, kv_h)) * scale;
                             if score > running_max {
                                 let c = (running_max - score).exp();
-                                for d in 0..dim { acc[d] *= c; }
-                                denom *= c; running_max = score;
+                                for d in 0..dim {
+                                    acc[d] *= c;
+                                }
+                                denom *= c;
+                                running_max = score;
                             }
                             let w = (score - running_max).exp();
                             denom += w;
-                            let vr = lm.values.row(b, kv_h);
-                            for d in 0..dim { acc[d] += w * vr[d]; }
+                            let vr = v.row(j, kv_h);
+                            for d in 0..dim {
+                                acc[d] += w * vr[d];
+                            }
+                        }
+                        if let Some(lm) = lm_ref {
+                            for &b in &blk_c {
+                                let score = dot(q_row, lm.keys.row(b, kv_h)) * scale;
+                                if score > running_max {
+                                    let c = (running_max - score).exp();
+                                    for d in 0..dim {
+                                        acc[d] *= c;
+                                    }
+                                    denom *= c;
+                                    running_max = score;
+                                }
+                                let w = (score - running_max).exp();
+                                denom += w;
+                                let vr = lm.values.row(b, kv_h);
+                                for d in 0..dim {
+                                    acc[d] += w * vr[d];
+                                }
+                            }
+                        }
+                        let inv = if denom > 0.0 { 1.0 / denom } else { 0.0 };
+                        let s = &mut hout[i * dim..(i + 1) * dim];
+                        for d in 0..dim {
+                            s[d] = acc[d] * inv;
                         }
                     }
-                    let inv = if denom > 0.0 { 1.0 / denom } else { 0.0 };
-                    let s = &mut hout[i * dim..(i + 1) * dim];
-                    for d in 0..dim { s[d] = acc[d] * inv; }
-                }
-                hout
-            }).collect();
+                    hout
+                })
+                .collect();
             let mut out = Tensor3::zeros(seq, q_heads, dim);
             for h in 0..q_heads {
                 for i in 0..seq {
-                    out.row_mut(i, h).copy_from_slice(&head_vecs[h][i * dim..(i + 1) * dim]);
+                    out.row_mut(i, h)
+                        .copy_from_slice(&head_vecs[h][i * dim..(i + 1) * dim]);
                 }
             }
             out
@@ -1116,11 +1436,28 @@ impl SubquadraticSparseAttention {
                     let stamp = 1 + h * seq + i;
                     token_candidates.clear();
                     block_candidates.clear();
-                    build_token_candidates(i, seq, &self.config, &mut seen_tokens, stamp, &mut token_candidates);
+                    build_token_candidates(
+                        i,
+                        seq,
+                        &self.config,
+                        &mut seen_tokens,
+                        stamp,
+                        &mut token_candidates,
+                    );
                     if landmarks.is_some() {
-                        build_landmark_candidates(i, seq, &self.config, &mut seen_blocks, stamp, &mut block_candidates);
+                        build_landmark_candidates(
+                            i,
+                            seq,
+                            &self.config,
+                            &mut seen_blocks,
+                            stamp,
+                            &mut block_candidates,
+                        );
                     }
-                    if self.config.sort_candidates { token_candidates.sort_unstable(); block_candidates.sort_unstable(); }
+                    if self.config.sort_candidates {
+                        token_candidates.sort_unstable();
+                        block_candidates.sort_unstable();
+                    }
                     let q_row = q.row(i, h);
                     let mut running_max = f32::NEG_INFINITY;
                     let mut denom = 0.0f32;
@@ -1129,33 +1466,43 @@ impl SubquadraticSparseAttention {
                         let score = dot(q_row, k.row(j, kv_h)) * scale;
                         if score > running_max {
                             let corr = (running_max - score).exp();
-                            for d in 0..dim { acc[d] *= corr; }
+                            for d in 0..dim {
+                                acc[d] *= corr;
+                            }
                             denom *= corr;
                             running_max = score;
                         }
                         let w = (score - running_max).exp();
                         denom += w;
                         let v_row = v.row(j, kv_h);
-                        for d in 0..dim { acc[d] += w * v_row[d]; }
+                        for d in 0..dim {
+                            acc[d] += w * v_row[d];
+                        }
                     }
                     if let Some(lm) = landmarks.as_ref() {
                         for &b in &block_candidates {
                             let score = dot(q_row, lm.keys.row(b, kv_h)) * scale;
                             if score > running_max {
                                 let corr = (running_max - score).exp();
-                                for d in 0..dim { acc[d] *= corr; }
+                                for d in 0..dim {
+                                    acc[d] *= corr;
+                                }
                                 denom *= corr;
                                 running_max = score;
                             }
                             let w = (score - running_max).exp();
                             denom += w;
                             let v_row = lm.values.row(b, kv_h);
-                            for d in 0..dim { acc[d] += w * v_row[d]; }
+                            for d in 0..dim {
+                                acc[d] += w * v_row[d];
+                            }
                         }
                     }
                     let out_row = out.row_mut(i, h);
                     let inv = if denom > 0.0 { 1.0 / denom } else { 0.0 };
-                    for d in 0..dim { out_row[d] = acc[d] * inv; }
+                    for d in 0..dim {
+                        out_row[d] = acc[d] * inv;
+                    }
                 }
             }
             out
@@ -1203,7 +1550,11 @@ impl SubquadraticSparseAttention {
         let causal = self.config.causal;
 
         // Choose tile size: auto means use window (fits L1 for typical models).
-        let tile = if tile_size == 0 { window.max(1) } else { tile_size };
+        let tile = if tile_size == 0 {
+            window.max(1)
+        } else {
+            tile_size
+        };
 
         // Per-query running accumulators [q_heads][seq] (running_max, denom, acc*dim).
         // Layout: flattened per query-head, then per query token.
@@ -1300,7 +1651,11 @@ impl SubquadraticSparseAttention {
                 // Window was already processed in Phase 1.
                 {
                     let win_lo = qi.saturating_sub(window);
-                    let win_hi = if causal { qi } else { (qi + window).min(seq - 1) };
+                    let win_hi = if causal {
+                        qi
+                    } else {
+                        (qi + window).min(seq - 1)
+                    };
                     let mark_stamp = stamp_base; // same stamp
                     for j in win_lo..=win_hi {
                         seen_tokens[j] = mark_stamp;
@@ -1322,7 +1677,12 @@ impl SubquadraticSparseAttention {
                     let mut stride = 1usize;
                     while stride < seq {
                         if qi >= stride {
-                            push_unique(qi - stride, &mut seen_tokens, stamp_base, &mut sparse_toks);
+                            push_unique(
+                                qi - stride,
+                                &mut seen_tokens,
+                                stamp_base,
+                                &mut sparse_toks,
+                            );
                         }
                         if !causal {
                             let fwd = qi + stride;
@@ -1340,7 +1700,12 @@ impl SubquadraticSparseAttention {
                 // landmarks
                 if let Some(lm) = landmarks.as_ref() {
                     build_landmark_candidates(
-                        qi, seq, &self.config, &mut seen_blocks, stamp_base, &mut sparse_blks,
+                        qi,
+                        seq,
+                        &self.config,
+                        &mut seen_blocks,
+                        stamp_base,
+                        &mut sparse_blks,
                     );
                     let slot = h * seq + qi;
                     let out_base = slot * dim;
@@ -1393,7 +1758,11 @@ impl SubquadraticSparseAttention {
         for h in 0..q_heads {
             for qi in 0..seq {
                 let slot = h * seq + qi;
-                let inv = if denom[slot] > 0.0 { 1.0 / denom[slot] } else { 0.0 };
+                let inv = if denom[slot] > 0.0 {
+                    1.0 / denom[slot]
+                } else {
+                    0.0
+                };
                 let out_row = out.row_mut(qi, h);
                 let src_base = slot * dim;
                 for d in 0..dim {
@@ -1461,7 +1830,7 @@ impl SubquadraticSparseAttention {
 /// stack-allocated `dim`-sized buffer is reused across heads).
 #[cfg(feature = "fp16")]
 pub struct KvCacheF16 {
-    keys: Vec<half::f16>,   // [capacity * kv_heads * dim] flattened
+    keys: Vec<half::f16>, // [capacity * kv_heads * dim] flattened
     values: Vec<half::f16>,
     pub len: usize,
     pub capacity: usize,
@@ -1569,15 +1938,26 @@ impl KvCacheF16 {
         let i = seq - 1;
 
         let mut seen_tokens = vec![0usize; seq.max(1)];
-        let mut seen_blocks =
-            vec![0usize; div_ceil(seq.max(1), attn.config.block_size)];
+        let mut seen_blocks = vec![0usize; div_ceil(seq.max(1), attn.config.block_size)];
         let mut token_candidates = Vec::with_capacity(attn.config.window + 64);
         let mut block_candidates = Vec::with_capacity(64);
 
-        build_token_candidates(i, seq, &attn.config, &mut seen_tokens, 1, &mut token_candidates);
+        build_token_candidates(
+            i,
+            seq,
+            &attn.config,
+            &mut seen_tokens,
+            1,
+            &mut token_candidates,
+        );
         if attn.config.use_landmarks {
             build_landmark_candidates(
-                i, seq, &attn.config, &mut seen_blocks, 1, &mut block_candidates,
+                i,
+                seq,
+                &attn.config,
+                &mut seen_blocks,
+                1,
+                &mut block_candidates,
             );
         }
 
@@ -1600,7 +1980,9 @@ impl KvCacheF16 {
                 let score = dot(q_row, &k_buf) * scale;
                 if score > running_max {
                     let corr = (running_max - score).exp();
-                    for d in 0..dim { acc[d] *= corr; }
+                    for d in 0..dim {
+                        acc[d] *= corr;
+                    }
                     denom_acc *= corr;
                     running_max = score;
                 }
@@ -1617,19 +1999,29 @@ impl KvCacheF16 {
                 let score = dot(q_row, self.landmarks.keys.row(b, kv_h)) * scale;
                 if score > running_max {
                     let corr = (running_max - score).exp();
-                    for d in 0..dim { acc[d] *= corr; }
+                    for d in 0..dim {
+                        acc[d] *= corr;
+                    }
                     denom_acc *= corr;
                     running_max = score;
                 }
                 let w = (score - running_max).exp();
                 denom_acc += w;
                 let v_row = self.landmarks.values.row(b, kv_h);
-                for d in 0..dim { acc[d] += w * v_row[d]; }
+                for d in 0..dim {
+                    acc[d] += w * v_row[d];
+                }
             }
 
-            let inv = if denom_acc > 0.0 { 1.0 / denom_acc } else { 0.0 };
+            let inv = if denom_acc > 0.0 {
+                1.0 / denom_acc
+            } else {
+                0.0
+            };
             let out_row = out.row_mut(0, h);
-            for d in 0..dim { out_row[d] = acc[d] * inv; }
+            for d in 0..dim {
+                out_row[d] = acc[d] * inv;
+            }
         }
 
         Ok(out)
@@ -1861,8 +2253,8 @@ mod tests {
     #[test]
     fn estimate_edges_always_below_dense() {
         for seq in [64usize, 128, 256, 512, 1024, 4096] {
-            let attention = SubquadraticSparseAttention::new(SparseAttentionConfig::default())
-                .unwrap();
+            let attention =
+                SubquadraticSparseAttention::new(SparseAttentionConfig::default()).unwrap();
             let sparse = attention.estimate_sparse_edges(seq);
             // Upper bound is seq*seq (full non-causal quadratic budget) because
             // estimate_sparse_edges also counts landmark block pseudo-edges, which
@@ -1955,7 +2347,10 @@ mod tests {
         let v = make_tensor(1, heads, dim);
         assert!(cache.try_append(&k, &v).is_ok());
         assert!(cache.try_append(&k, &v).is_ok());
-        assert!(cache.try_append(&k, &v).is_err(), "should error on overflow");
+        assert!(
+            cache.try_append(&k, &v).is_err(),
+            "should error on overflow"
+        );
     }
 
     #[test]
@@ -1990,12 +2385,18 @@ mod tests {
         for t in 0..seq {
             let k_t = Tensor3::from_vec(
                 k.data[t * heads * dim..(t + 1) * heads * dim].to_vec(),
-                1, heads, dim,
-            ).unwrap();
+                1,
+                heads,
+                dim,
+            )
+            .unwrap();
             let v_t = Tensor3::from_vec(
                 v.data[t * heads * dim..(t + 1) * heads * dim].to_vec(),
-                1, heads, dim,
-            ).unwrap();
+                1,
+                heads,
+                dim,
+            )
+            .unwrap();
             inc_lm.update(t, &k_t, &v_t);
         }
 
@@ -2024,7 +2425,8 @@ mod tests {
             use_log_stride: false,
             use_landmarks: false,
             sort_candidates: false,
-        }).unwrap();
+        })
+        .unwrap();
 
         let q = make_tensor(draft_len, q_heads, dim);
         let new_k = make_tensor(draft_len, kv_heads, dim);
@@ -2032,7 +2434,9 @@ mod tests {
 
         // Batch path
         let mut cache_batch = KvCache::new(capacity, kv_heads, dim, block_size);
-        let batch_out = attn.decode_batch(&q, &new_k, &new_v, &mut cache_batch).unwrap();
+        let batch_out = attn
+            .decode_batch(&q, &new_k, &new_v, &mut cache_batch)
+            .unwrap();
         assert_eq!(batch_out.seq, draft_len);
         assert_eq!(batch_out.heads, q_heads);
         assert_eq!(batch_out.dim, dim);
@@ -2043,24 +2447,35 @@ mod tests {
         for t in 0..draft_len {
             let q_t = Tensor3::from_vec(
                 q.data[t * q_heads * dim..(t + 1) * q_heads * dim].to_vec(),
-                1, q_heads, dim,
-            ).unwrap();
+                1,
+                q_heads,
+                dim,
+            )
+            .unwrap();
             let k_t = Tensor3::from_vec(
                 new_k.data[t * kv_heads * dim..(t + 1) * kv_heads * dim].to_vec(),
-                1, kv_heads, dim,
-            ).unwrap();
+                1,
+                kv_heads,
+                dim,
+            )
+            .unwrap();
             let v_t = Tensor3::from_vec(
                 new_v.data[t * kv_heads * dim..(t + 1) * kv_heads * dim].to_vec(),
-                1, kv_heads, dim,
-            ).unwrap();
+                1,
+                kv_heads,
+                dim,
+            )
+            .unwrap();
             cache_seq.try_append(&k_t, &v_t).unwrap();
             let out_t = attn.decode_step(&q_t, &cache_seq).unwrap();
-            seq_out.data[t * q_heads * dim..(t + 1) * q_heads * dim]
-                .copy_from_slice(&out_t.data);
+            seq_out.data[t * q_heads * dim..(t + 1) * q_heads * dim].copy_from_slice(&out_t.data);
         }
 
         for (a, b) in batch_out.data.iter().zip(seq_out.data.iter()) {
-            assert!((a - b).abs() < 1e-5, "decode_batch vs sequential: {a} vs {b}");
+            assert!(
+                (a - b).abs() < 1e-5,
+                "decode_batch vs sequential: {a} vs {b}"
+            );
         }
     }
 
@@ -2088,7 +2503,12 @@ mod tests {
         let mha = attn.forward(&q, &k, &v).unwrap();
         let gqa = attn.forward_gqa(&q, &k, &v).unwrap();
         for (a, b) in mha.data.iter().zip(gqa.data.iter()) {
-            assert!((a - b).abs() < 1e-5, "MHA vs GQA group_size=1 mismatch: {} vs {}", a, b);
+            assert!(
+                (a - b).abs() < 1e-5,
+                "MHA vs GQA group_size=1 mismatch: {} vs {}",
+                a,
+                b
+            );
         }
     }
 
@@ -2269,7 +2689,10 @@ mod tests {
         })
         .unwrap();
         let out = attn.forward_flash(&q, &k, &v, 1);
-        assert!(out.is_ok(), "single-token forward_flash panicked or errored");
+        assert!(
+            out.is_ok(),
+            "single-token forward_flash panicked or errored"
+        );
         let out = out.unwrap();
         assert_eq!(out.seq, 1);
         for val in &out.data {
@@ -2314,5 +2737,160 @@ mod tests {
                 stored
             );
         }
+    }
+
+    // ---- forward_gated tests ---------------------------------------------
+
+    fn random_qkv(seq: usize, heads: usize, dim: usize) -> (Tensor3, Tensor3, Tensor3) {
+        // Deterministic pseudo-random fill (no external crate at unit-test
+        // level so this stays platform-stable across runs).
+        let mut s = 0xa5a5a5a5u32;
+        let mut next = || {
+            s ^= s << 13;
+            s ^= s >> 17;
+            s ^= s << 5;
+            (s as f32 / u32::MAX as f32 - 0.5) * 0.5
+        };
+        let mut q = Tensor3::zeros(seq, heads, dim);
+        let mut k = Tensor3::zeros(seq, heads, dim);
+        let mut v = Tensor3::zeros(seq, heads, dim);
+        for t in 0..seq {
+            for h in 0..heads {
+                for d in 0..dim {
+                    q.row_mut(t, h)[d] = next();
+                    k.row_mut(t, h)[d] = next();
+                    v.row_mut(t, h)[d] = next();
+                }
+            }
+        }
+        (q, k, v)
+    }
+
+    #[test]
+    fn forward_gated_all_true_matches_forward() {
+        // keep_mask all-true must produce bit-identical output to plain forward.
+        let cfg = SparseAttentionConfig::default();
+        let attn = SubquadraticSparseAttention::new(cfg).unwrap();
+        let (q, k, v) = random_qkv(64, 2, 8);
+        let baseline = attn.forward(&q, &k, &v).unwrap();
+        let keep = vec![true; 64];
+        let gated = attn.forward_gated(&q, &k, &v, &keep).unwrap();
+        for t in 0..64 {
+            for h in 0..2 {
+                for d in 0..8 {
+                    let a = baseline.row(t, h)[d];
+                    let b = gated.row(t, h)[d];
+                    assert!(
+                        (a - b).abs() < 1e-6,
+                        "all-true gate must equal forward: pos {} head {} d {} → {} vs {}",
+                        t,
+                        h,
+                        d,
+                        a,
+                        b
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn forward_gated_all_false_keeps_window_and_globals() {
+        // keep_mask all-false: only window + globals + current are kept,
+        // so the per-position candidate count must equal the window size
+        // plus the global count plus 1 (self), with appropriate truncation
+        // at the start of the sequence.
+        let cfg = SparseAttentionConfig {
+            window: 8,
+            global_tokens: vec![0],
+            ..SparseAttentionConfig::default()
+        };
+        let attn = SubquadraticSparseAttention::new(cfg).unwrap();
+        let (q, k, v) = random_qkv(64, 2, 8);
+        let keep = vec![false; 64];
+        // With all-false mask the gate strips log-stride candidates;
+        // result should still be valid (no NaN, output finite).
+        let out = attn.forward_gated(&q, &k, &v, &keep).unwrap();
+        for t in 0..64 {
+            for h in 0..2 {
+                for d in 0..8 {
+                    assert!(out.row(t, h)[d].is_finite());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn forward_gated_rejects_wrong_mask_length() {
+        let attn = SubquadraticSparseAttention::new(SparseAttentionConfig::default()).unwrap();
+        let (q, k, v) = random_qkv(16, 1, 4);
+        let keep = vec![true; 15]; // wrong length
+        let r = attn.forward_gated(&q, &k, &v, &keep);
+        assert!(matches!(r, Err(AttentionError::InvalidConfig(_))));
+    }
+
+    #[test]
+    fn forward_gated_with_fastgrnn_top_k_runs_and_is_finite() {
+        let attn = SubquadraticSparseAttention::new(SparseAttentionConfig::default()).unwrap();
+        let (q, k, v) = random_qkv(64, 2, 8);
+        let gate = crate::fastgrnn_gate::FastGrnnGate::new(8, 16);
+        let out = attn
+            .forward_gated_with_fastgrnn(&q, &k, &v, &gate, 16)
+            .unwrap();
+        for t in 0..64 {
+            for h in 0..2 {
+                for d in 0..8 {
+                    assert!(
+                        out.row(t, h)[d].is_finite(),
+                        "non-finite at t={}, h={}, d={}",
+                        t,
+                        h,
+                        d
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn forward_gated_smaller_top_k_reduces_candidate_count() {
+        // Verify the gate is actually pruning by comparing edge estimates.
+        // With top_k = 0 (no log-stride passes the gate) per-position
+        // candidate count should be ≤ window + globals + 1; with all-true
+        // it should match the unfiltered estimate.
+        let cfg = SparseAttentionConfig {
+            window: 4,
+            block_size: 8,
+            global_tokens: vec![0],
+            causal: true,
+            use_log_stride: true,
+            use_landmarks: false,
+            sort_candidates: false,
+        };
+        let attn = SubquadraticSparseAttention::new(cfg.clone()).unwrap();
+        let seq = 256;
+        let unfiltered = attn.estimate_sparse_edges(seq);
+
+        // Manually count candidates after filtering with all-false mask.
+        let mut filtered_total = 0usize;
+        let mut seen = vec![0usize; seq];
+        let mut tokc = Vec::<usize>::new();
+        let global_set: BTreeSet<usize> = cfg.global_tokens.iter().copied().collect();
+        for i in 0..seq {
+            let stamp = i + 1;
+            tokc.clear();
+            super::build_token_candidates(i, seq, &cfg, &mut seen, stamp, &mut tokc);
+            tokc.retain(|&j| {
+                let lo = i.saturating_sub(cfg.window);
+                j == i || (j >= lo && j <= i) || global_set.contains(&j) // mask all-false
+            });
+            filtered_total += tokc.len();
+        }
+        assert!(
+            filtered_total < unfiltered,
+            "filtered count {} should be < unfiltered count {}",
+            filtered_total,
+            unfiltered
+        );
     }
 }

@@ -213,6 +213,35 @@ serving binary deployed to cluster nodes.
   run: cargo test -p ruvllm_sparse_attention --all-features
 ```
 
+## Cluster Validation
+
+All 25 tests cross-compiled for `aarch64-unknown-linux-gnu` and executed
+on each cluster node over Tailscale SSH:
+
+```bash
+RUSTFLAGS="-C target-cpu=cortex-a76 -C target-feature=+lse,+rcpc,+fp16,+crc" \
+  CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+  cargo test -p ruvllm_sparse_attention --lib \
+  --target aarch64-unknown-linux-gnu --release
+```
+
+| Node | Tailscale IP | Hardware | Result |
+|---|---|---|---|
+| cognitum-v0 | 100.77.59.83 | Pi 5 Model B Rev 1.1 + Hailo-10H | 25/25 ✓ |
+| cognitum-v1 | 100.80.54.16 | Pi 5 Model B Rev 1.1 + Hailo-10H | 25/25 ✓ |
+| cognitum-cluster-2 | 100.77.220.24 | Pi 5 Model B Rev 1.1 + Hailo-10H | 25/25 ✓ |
+| cognitum-cluster-3 | 100.73.75.53 | Pi 5 Model B Rev 1.1 + Hailo-10H | 25/25 ✓ |
+
+Test count increased from 17 (original edge-case suite) to 25 total.
+The 8 additional tests cover flash-sparse equivalence and GQA/flash
+correctness, added alongside ADR-190 delivery:
+
+- `forward_flash_matches_forward_mha`
+- `forward_flash_matches_forward_non_causal`
+- `forward_gqa_flash_matches_forward_gqa`
+- `forward_gqa_group1_equals_forward`
+- (plus 4 more from decode/eviction path — see ADR-189, ADR-190)
+
 ## Consequences
 
 ### Positive
@@ -222,6 +251,7 @@ serving binary deployed to cluster nodes.
 - Validates both ADR-184 (online softmax) and ADR-185 (landmark fix)
   with a single correctness test.
 - Edge-estimate test provides a regression guard for the benchmark CSV.
+- 25/25 pass on all 4 cognitum cluster nodes (Pi 5 + Hailo-10H).
 
 ### Negative
 

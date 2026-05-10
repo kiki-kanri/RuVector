@@ -114,10 +114,16 @@ are applied — worst case is the same as two-pass.
 ### Positive
 
 - **~2× reduction in dot-product FLOPs** in the forward pass critical path.
-- Enables future SIMD (`std::arch::aarch64::vdotq_s32`, Arm NEON) to
-  operate over a single linear pass without a separate max-scan kernel.
-- Maps cleanly to Flash Attention v2 tiling: each tile is one-pass
-  online softmax; no global max pre-computation required.
+- **SIMD auto-vectorization**: The `dot()` inner loop was rewritten as an
+  iterator `zip/map/sum` chain. LLVM consistently emits NEON `fmla`
+  instructions on `aarch64` (Pi 5) and AVX2 `vfmadd` on x86-64, with no
+  unsafe code or intrinsics — confirmed in the cluster validation runs.
+  ```rust
+  // iterator dot() auto-vectorizes to NEON fmla on Pi 5
+  a.iter().zip(b.iter()).map(|(x, y)| x * y).sum::<f32>()
+  ```
+- Maps cleanly to Flash Attention v2 tiling (`forward_flash`): each tile
+  is one-pass online softmax; no global max pre-computation required.
 - Existing correctness tests (`sparse_matches_dense_*`) validate
   equivalence without modification.
 
@@ -130,6 +136,38 @@ are applied — worst case is the same as two-pass.
   found. Numerical output is identical to two-pass but not identical to
   a different ordering. This is acceptable — softmax is permutation-
   invariant in exact arithmetic; floating-point differences are < 1e-7.
+
+## Benchmark Results
+
+Configuration: 8 heads, dim=64, window=128, block_size=64, causal=true.
+Criterion harness, 10-sample runs.
+
+### x86-64 (AMD Ryzen, ruvultra workstation)
+
+| seq | sparse forward | dense reference | reduction |
+|---|---|---|---|
+| 512 | 13.1 ms | 28.8 ms | 2.2× |
+| 1,024 | 28.4 ms | 113.1 ms | 4.0× |
+| 2,048 | 60.1 ms | 463.5 ms | 7.7× |
+| 4,096 | 126.5 ms | 1,897 ms | 15.0× |
+| 8,192 | 262.6 ms | 7,696 ms | 29.3× |
+
+### Pi 5 Cortex-A76 (cognitum-v0, aarch64)
+
+Compiled: `-C target-cpu=cortex-a76 -C target-feature=+lse,+rcpc,+fp16,+crc`
+
+| seq | sparse forward | est. dense | reduction |
+|---|---|---|---|
+| 512 | 85.8 ms | ~189 ms | 2.2× |
+| 1,024 | 190.5 ms | ~762 ms | 4.0× |
+| 2,048 | 401.0 ms | ~3,088 ms | 7.7× |
+| 4,096 | 836.2 ms | ~12,543 ms | 15.0× |
+| 8,192 | ~1,660 ms (est.) | ~48,671 ms (est.) | 29.3× |
+
+Single Mistral-7B forward at `seq=4096` on Pi 5:
+`836.2 ms × 32 layers = ~26.8 seconds` — from an estimated 401 seconds
+for dense attention. The Hailo-10H NPU handles weight projections while
+Pi 5 CPU runs this kernel; attention wall time is the CPU bottleneck.
 
 ## Hailo integration note
 

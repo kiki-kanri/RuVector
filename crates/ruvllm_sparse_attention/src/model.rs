@@ -1,4 +1,6 @@
-use crate::attention::{AttentionBackend, AttentionError, SparseAttentionConfig, SubquadraticSparseAttention};
+use crate::attention::{
+    AttentionBackend, AttentionError, SparseAttentionConfig, SubquadraticSparseAttention,
+};
 use crate::tensor::Tensor3;
 
 #[derive(Clone, Debug)]

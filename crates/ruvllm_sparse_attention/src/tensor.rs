@@ -1,3 +1,8 @@
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec;
+use alloc::vec::Vec;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Tensor3 {
     pub data: Vec<f32>,
